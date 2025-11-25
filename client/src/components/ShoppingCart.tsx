@@ -1,0 +1,174 @@
+import { useState } from "react";
+import { X, Minus, Plus, ShoppingBag } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+export interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  quantity: number;
+  size?: string;
+}
+
+interface ShoppingCartProps {
+  isOpen: boolean;
+  onClose: () => void;
+  items?: CartItem[];
+}
+
+export default function ShoppingCart({ isOpen, onClose, items: initialItems = [] }: ShoppingCartProps) {
+  const [items, setItems] = useState<CartItem[]>(initialItems);
+
+  const updateQuantity = (id: string, delta: number) => {
+    setItems(prev =>
+      prev.map(item =>
+        item.id === id
+          ? { ...item, quantity: Math.max(1, item.quantity + delta) }
+          : item
+      )
+    );
+  };
+
+  const removeItem = (id: string) => {
+    setItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const shipping = subtotal > 100 ? 0 : 10;
+  const total = subtotal + shipping;
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-full md:w-96 bg-background border-l shadow-xl z-50 flex flex-col">
+      <div className="flex items-center justify-between p-4 border-b">
+        <h2 className="text-lg font-semibold" data-testid="text-cart-title">
+          Shopping Cart ({items.length})
+        </h2>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onClose}
+          data-testid="button-close-cart"
+        >
+          <X className="h-5 w-5" />
+        </Button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+          <ShoppingBag className="h-16 w-16 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium mb-2" data-testid="text-empty-cart">Your cart is empty</h3>
+          <p className="text-sm text-muted-foreground mb-6">
+            Add some items to get started
+          </p>
+          <Button onClick={onClose} data-testid="button-continue-shopping">
+            Continue Shopping
+          </Button>
+        </div>
+      ) : (
+        <>
+          <ScrollArea className="flex-1 p-4">
+            <div className="space-y-4">
+              {items.map((item) => (
+                <div 
+                  key={item.id} 
+                  className="flex gap-4"
+                  data-testid={`cart-item-${item.id}`}
+                >
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="w-20 h-20 object-cover rounded"
+                    data-testid={`img-cart-${item.id}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-medium text-sm truncate" data-testid={`text-name-${item.id}`}>
+                          {item.name}
+                        </h4>
+                        {item.size && (
+                          <p className="text-xs text-muted-foreground">Size: {item.size}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => removeItem(item.id)}
+                        className="text-muted-foreground hover:text-foreground"
+                        data-testid={`button-remove-${item.id}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center gap-2 border rounded">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => updateQuantity(item.id, -1)}
+                          data-testid={`button-decrease-${item.id}`}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="text-sm w-8 text-center" data-testid={`text-quantity-${item.id}`}>
+                          {item.quantity}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => updateQuantity(item.id, 1)}
+                          data-testid={`button-increase-${item.id}`}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+
+                      <p className="font-semibold" data-testid={`text-price-${item.id}`}>
+                        ${(item.price * item.quantity).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+
+          <div className="border-t p-4 space-y-4">
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span data-testid="text-subtotal">${subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Shipping</span>
+                <span data-testid="text-shipping">
+                  {shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}
+                </span>
+              </div>
+              {subtotal < 100 && subtotal > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Add ${(100 - subtotal).toFixed(2)} more for free shipping
+                </p>
+              )}
+              <Separator />
+              <div className="flex justify-between font-semibold text-base">
+                <span>Total</span>
+                <span data-testid="text-total">${total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <Button className="w-full" size="lg" data-testid="button-checkout">
+              Proceed to Checkout
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
