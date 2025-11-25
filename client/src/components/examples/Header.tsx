@@ -5,7 +5,9 @@ export default function HeaderExample() {
     <Header 
       onCartClick={() => console.log('Cart clicked')}
       onAIClick={() => console.log('AI assistant clicked')}
+      onAuthClick={() => console.log('Auth clicked')}
       cartItemCount={3}
+      user={null}
     />
   );
 }

@@ -1,40 +1,65 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sparkles } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import ProductGrid from "@/components/ProductGrid";
 import AIChat from "@/components/AIChat";
 import VisualSearchModal from "@/components/VisualSearchModal";
 import ShoppingCart from "@/components/ShoppingCart";
+import AuthModal from "@/components/AuthModal";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import type { Product } from "@/components/ProductCard";
 import type { CartItem } from "@/components/ShoppingCart";
-
-import sneakerImg from '@assets/generated_images/white_sneaker_product.png';
-import jacketImg from '@assets/generated_images/black_leather_jacket.png';
-import coatImg from '@assets/generated_images/beige_trench_coat.png';
-import sweaterImg from '@assets/generated_images/grey_wool_sweater.png';
-import jeansImg from '@assets/generated_images/blue_denim_jeans.png';
-import blouseImg from '@assets/generated_images/white_silk_blouse.png';
+import type { User } from "@/lib/auth";
+import { productService } from "@/lib/products";
+import { authService } from "@/lib/auth";
 
 export default function Home() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [isVisualSearchOpen, setIsVisualSearchOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  const products: Product[] = [
-    { id: '1', name: 'Classic White Sneaker', price: 129.99, image: sneakerImg, category: 'Footwear' },
-    { id: '2', name: 'Premium Leather Jacket', price: 349.99, image: jacketImg, category: 'Outerwear' },
-    { id: '3', name: 'Elegant Trench Coat', price: 289.99, image: coatImg, category: 'Outerwear' },
-    { id: '4', name: 'Cashmere Wool Sweater', price: 159.99, image: sweaterImg, category: 'Knitwear' },
-    { id: '5', name: 'Designer Denim Jeans', price: 189.99, image: jeansImg, category: 'Bottoms' },
-    { id: '6', name: 'Silk Blouse', price: 139.99, image: blouseImg, category: 'Tops' },
-    { id: '7', name: 'White Sneaker Collection', price: 129.99, image: sneakerImg, category: 'Footwear' },
-    { id: '8', name: 'Black Leather Classic', price: 379.99, image: jacketImg, category: 'Outerwear' },
-    { id: '9', name: 'Beige Statement Coat', price: 299.99, image: coatImg, category: 'Outerwear' },
-  ];
+  // Fetch products from backend
+  const { data: products = [], isLoading: isLoadingProducts } = useQuery({
+    queryKey: ['/api/products'],
+    queryFn: () => productService.getAllProducts({ limit: 50 }),
+  });
+
+  // Load cart from localStorage on mount
+  useEffect(() => {
+    const savedCart = localStorage.getItem('cart_items');
+    if (savedCart) {
+      try {
+        setCartItems(JSON.parse(savedCart));
+      } catch (e) {
+        console.error('Failed to load cart:', e);
+      }
+    }
+  }, []);
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('cart_items', JSON.stringify(cartItems));
+  }, [cartItems]);
+
+  // Check for existing auth session
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const user = await authService.getCurrentUser();
+        setCurrentUser(user);
+      } catch (error) {
+        // User not authenticated
+        setCurrentUser(null);
+      }
+    };
+    checkAuth();
+  }, []);
 
   const handleAddToCart = (product: Product) => {
     const existingItem = cartItems.find(item => item.id === product.id);
@@ -66,7 +91,9 @@ export default function Home() {
       <Header
         onCartClick={() => setIsCartOpen(true)}
         onAIClick={() => setIsAIChatOpen(true)}
+        onAuthClick={() => setIsAuthModalOpen(true)}
         cartItemCount={cartItems.reduce((sum, item) => sum + item.quantity, 0)}
+        user={currentUser}
       />
 
       <main className="flex-1">
@@ -121,11 +148,17 @@ export default function Home() {
             </div>
           </div>
 
-          <ProductGrid
-            products={products}
-            onAddToCart={handleAddToCart}
-            onVisualSearch={() => setIsVisualSearchOpen(true)}
-          />
+          {isLoadingProducts ? (
+            <div className="flex justify-center items-center py-16">
+              <div className="animate-pulse text-muted-foreground">Loading products...</div>
+            </div>
+          ) : (
+            <ProductGrid
+              products={products}
+              onAddToCart={handleAddToCart}
+              onVisualSearch={() => setIsVisualSearchOpen(true)}
+            />
+          )}
         </section>
       </main>
 
@@ -144,6 +177,11 @@ export default function Home() {
       <AIChat isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
       <ShoppingCart isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} items={cartItems} />
       <VisualSearchModal isOpen={isVisualSearchOpen} onClose={() => setIsVisualSearchOpen(false)} />
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={(user) => setCurrentUser(user)}
+      />
     </div>
   );
 }

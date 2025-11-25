@@ -1,19 +1,42 @@
-import { useState } from "react";
-import { Search, ShoppingBag, Sparkles, Menu, X } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Search, ShoppingBag, Sparkles, Menu, X, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { productService } from "@/lib/products";
+import { useQuery } from "@tanstack/react-query";
+import type { User as UserType } from "@/lib/auth";
 
 interface HeaderProps {
   onCartClick: () => void;
   onAIClick: () => void;
+  onAuthClick: () => void;
   cartItemCount?: number;
+  user?: UserType | null;
 }
 
-export default function Header({ onCartClick, onAIClick, cartItemCount = 0 }: HeaderProps) {
+export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCount = 0, user }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   const categories = ["New Arrivals", "Women", "Men", "Accessories", "Sale"];
+
+  // Debounce search
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    const timer = setTimeout(() => {
+      setDebouncedQuery(value);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Search products
+  const { data: searchResults } = useQuery({
+    queryKey: ['/api/products/search', debouncedQuery],
+    queryFn: () => productService.searchProducts(debouncedQuery, 5),
+    enabled: debouncedQuery.length > 2,
+  });
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b">
@@ -52,10 +75,36 @@ export default function Header({ onCartClick, onAIClick, cartItemCount = 0 }: He
                 type="search"
                 placeholder="Search for products..."
                 className="pl-10 w-full"
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
+                onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
                 data-testid="input-search"
               />
+              {searchFocused && searchResults && searchResults.length > 0 && (
+                <div className="absolute top-full mt-2 w-full bg-popover border rounded-lg shadow-lg z-50 max-h-96 overflow-auto">
+                  {searchResults.map((product) => (
+                    <button
+                      key={product.id}
+                      className="w-full flex items-center gap-3 p-3 hover-elevate active-elevate-2 text-left"
+                      onClick={() => {
+                        setSearchQuery("");
+                        setSearchFocused(false);
+                      }}
+                    >
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="w-12 h-12 object-cover rounded"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{product.name}</p>
+                        <p className="text-sm text-muted-foreground">${product.price.toFixed(2)}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -87,6 +136,15 @@ export default function Header({ onCartClick, onAIClick, cartItemCount = 0 }: He
                   {cartItemCount}
                 </span>
               )}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onAuthClick}
+              data-testid="button-account"
+            >
+              <User className="h-5 w-5" />
             </Button>
           </div>
         </div>
