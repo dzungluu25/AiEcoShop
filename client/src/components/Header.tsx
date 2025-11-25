@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Search, ShoppingBag, Sparkles, Menu, X, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,14 +22,14 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
 
   const categories = ["New Arrivals", "Women", "Men", "Accessories", "Sale"];
 
-  // Debounce search
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value);
+  // Debounce search query
+  useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedQuery(value);
+      setDebouncedQuery(searchQuery);
     }, 300);
+
     return () => clearTimeout(timer);
-  }, []);
+  }, [searchQuery]);
 
   // Search products
   const { data: searchResults } = useQuery({
@@ -76,7 +76,7 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
                 placeholder="Search for products..."
                 className="pl-10 w-full"
                 value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setSearchFocused(true)}
                 onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
                 data-testid="input-search"
