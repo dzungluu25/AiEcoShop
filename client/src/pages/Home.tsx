@@ -23,12 +23,22 @@ export default function Home() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string | null>("All");
 
   // Fetch products from backend
   const { data: products = [], isLoading: isLoadingProducts } = useQuery({
     queryKey: ['/api/products'],
     queryFn: () => productService.getAllProducts({ limit: 50 }),
   });
+
+  const categories = [
+    'All',
+    ...Array.from(new Set(products.map(p => p.category))).sort((a, b) => a.localeCompare(b))
+  ];
+
+  const displayProducts = activeCategory && activeCategory !== 'All'
+    ? products.filter(p => p.category === activeCategory)
+    : products;
 
   // Load cart from localStorage on mount
   useEffect(() => {
@@ -94,6 +104,9 @@ export default function Home() {
         onAuthClick={() => setIsAuthModalOpen(true)}
         cartItemCount={cartItems.reduce((sum, item) => sum + item.quantity, 0)}
         user={currentUser}
+        categories={categories}
+        activeCategory={activeCategory}
+        onCategoryClick={(cat) => setActiveCategory(cat)}
       />
 
       <main className="flex-1">
@@ -154,7 +167,7 @@ export default function Home() {
             </div>
           ) : (
             <ProductGrid
-              products={products}
+              products={displayProducts}
               onAddToCart={handleAddToCart}
               onVisualSearch={() => setIsVisualSearchOpen(true)}
             />

@@ -14,14 +14,8 @@ class ApiClient {
 
   private getAuthHeaders(): HeadersInit {
     const token = localStorage.getItem('auth_token');
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
+    const headers: HeadersInit = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     return headers;
   }
 
@@ -36,10 +30,12 @@ class ApiClient {
     };
 
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
+      const hasBody = options.body !== undefined;
+      const finalHeaders: HeadersInit = { ...headers };
+      if (hasBody && !('Content-Type' in finalHeaders)) {
+        finalHeaders['Content-Type'] = 'application/json';
+      }
+      const response = await fetch(url, { ...options, headers: finalHeaders });
 
       if (!response.ok) {
         const error: ApiError = {

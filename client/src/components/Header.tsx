@@ -12,15 +12,18 @@ interface HeaderProps {
   onAuthClick: () => void;
   cartItemCount?: number;
   user?: UserType | null;
+  categories?: string[];
+  onCategoryClick?: (category: string) => void;
+  activeCategory?: string | null;
 }
 
-export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCount = 0, user }: HeaderProps) {
+export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCount = 0, user, categories: categoriesProp, onCategoryClick, activeCategory }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  const categories = ["New Arrivals", "Women", "Men", "Accessories", "Sale"];
+  const categories = categoriesProp && categoriesProp.length > 0 ? categoriesProp : ["All"];
 
   // Debounce search query
   useEffect(() => {
@@ -52,7 +55,7 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
             </button>
             
             <h1 className="font-serif text-2xl font-light tracking-wide" data-testid="text-logo">
-              LUXE
+              Team10
             </h1>
           </div>
 
@@ -60,8 +63,9 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
             {categories.map((category) => (
               <button
                 key={category}
-                className="text-sm font-medium tracking-wide hover-elevate active-elevate-2 px-3 py-1.5 rounded-md transition-colors"
+                className={`text-sm font-medium tracking-wide px-3 py-1.5 rounded-md transition-colors ${activeCategory === category ? 'bg-primary/10 text-primary' : 'hover-elevate active-elevate-2'}`}
                 data-testid={`link-category-${category.toLowerCase().replace(' ', '-')}`}
+                onClick={() => onCategoryClick && onCategoryClick(category)}
               >
                 {category}
               </button>
@@ -155,8 +159,12 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
               {categories.map((category) => (
                 <button
                   key={category}
-                  className="text-left px-3 py-2 text-sm font-medium tracking-wide hover-elevate active-elevate-2 rounded-md"
+                  className={`text-left px-3 py-2 text-sm font-medium tracking-wide rounded-md ${activeCategory === category ? 'bg-primary/10 text-primary' : 'hover-elevate active-elevate-2'}`}
                   data-testid={`link-mobile-${category.toLowerCase().replace(' ', '-')}`}
+                  onClick={() => {
+                    onCategoryClick && onCategoryClick(category);
+                    setMobileMenuOpen(false);
+                  }}
                 >
                   {category}
                 </button>

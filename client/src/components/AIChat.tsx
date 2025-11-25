@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { aiService, type ChatMessage } from "@/lib/ai";
 
 interface Message {
   id: string;
@@ -53,14 +54,38 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
 
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'ai',
-        content: "I'd be happy to help you with that! Here's a curated selection based on your request:"
-      };
-      setMessages(prev => [...prev, aiResponse]);
-    }, 1000);
+    const chatMessages: ChatMessage[] = [...messages, userMessage].map(m => ({
+      role: m.type === 'user' ? 'user' : 'assistant',
+      content: m.content,
+    }));
+
+    aiService.chat({ messages: chatMessages })
+      .then(res => {
+        const aiResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'ai',
+          content: res.message,
+        };
+        setMessages(prev => [...prev, aiResponse]);
+
+        if (res.recommendations && res.recommendations.length > 0) {
+          const productMessages: Message[] = res.recommendations.map((r, idx) => ({
+            id: `${Date.now() + 2 + idx}`,
+            type: 'ai',
+            content: r.reason,
+            product: r.product,
+          }));
+          setMessages(prev => [...prev, ...productMessages]);
+        }
+      })
+      .catch(() => {
+        const aiResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'ai',
+          content: "Sorry, I couldn't process that right now. Please try again.",
+        };
+        setMessages(prev => [...prev, aiResponse]);
+      });
   };
 
   if (!isOpen) return null;

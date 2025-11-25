@@ -15,6 +15,12 @@ export interface ChatResponse {
   recommendations?: Array<{
     productId: string;
     reason: string;
+    product?: {
+      id: string;
+      name: string;
+      price: number;
+      image: string;
+    };
   }>;
 }
 
@@ -37,26 +43,14 @@ export interface VisualSearchResult {
 
 export const aiService = {
   async chat(request: ChatRequest): Promise<ChatResponse> {
-    // TODO: Replace with actual AI endpoint when available
-    // For now, return mock response
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          message: "I'd be happy to help you find the perfect items! Based on your request, here are some curated recommendations that match your style.",
-          recommendations: [],
-        });
-      }, 1000);
-    });
+    return apiClient.post<ChatResponse>('/ai/chat', request);
   },
 
   async visualSearch(request: VisualSearchRequest): Promise<VisualSearchResult[]> {
-    // TODO: Replace with actual visual search endpoint when available
-    // For now, return mock response
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([]);
-      }, 1500);
-    });
+    const payload: Record<string, unknown> = {};
+    if (request.imageUrl) payload.imageUrl = request.imageUrl;
+    if (request.limit) payload.limit = request.limit;
+    return apiClient.post<VisualSearchResult[]>('/ai/visual-search', payload);
   },
 
   async uploadImageForSearch(file: File): Promise<{ imageUrl: string }> {

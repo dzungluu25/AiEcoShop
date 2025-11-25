@@ -4,6 +4,7 @@ export interface BackendProduct {
   id: string;
   name: string;
   brand?: string;
+  category?: string;
   description: string;
   price: number;
   maxQuantity: number;
@@ -49,7 +50,7 @@ function transformProduct(product: BackendProduct): FrontendProduct {
     name: product.name,
     price: product.price,
     image: product.image || product.imgUrl,
-    category: product.brand || 'General',
+    category: product.category || product.brand || 'General',
     brand: product.brand,
     description: product.description,
     stock: product.stock,
@@ -66,7 +67,7 @@ function transformProductDetail(product: BackendProduct): ProductDetail {
     price: product.price,
     image: product.image || product.imgUrl,
     images: [product.image || product.imgUrl],
-    category: product.brand || 'General',
+    category: product.category || product.brand || 'General',
     brand: product.brand,
     description: product.description,
     stock: product.stock,

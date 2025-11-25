@@ -3,6 +3,7 @@ import { Upload, X, Camera, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import ProductCard, { type Product } from "./ProductCard";
+import { aiService, type VisualSearchResult } from "@/lib/ai";
 
 interface VisualSearchModalProps {
   isOpen: boolean;
@@ -14,12 +15,26 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [results, setResults] = useState<Product[]>([]);
 
-  const mockResults: Product[] = [
-    { id: '1', name: 'Similar Item 1', price: 149.99, image: '', category: 'Clothing' },
-    { id: '2', name: 'Similar Item 2', price: 179.99, image: '', category: 'Clothing' },
-    { id: '3', name: 'Similar Item 3', price: 129.99, image: '', category: 'Clothing' },
-  ];
+  const runVisualSearch = async (imageUrl: string) => {
+    setIsSearching(true);
+    try {
+      const res: VisualSearchResult[] = await aiService.visualSearch({ imageUrl, limit: 9 });
+      const mapped: Product[] = res.map(r => ({
+        id: r.product.id,
+        name: r.product.name,
+        price: r.product.price,
+        image: r.product.image,
+        category: 'Similar',
+      }));
+      setResults(mapped);
+    } catch {
+      setResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -28,10 +43,15 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        setUploadedImage(e.target?.result as string);
-        setIsSearching(true);
-        setTimeout(() => setIsSearching(false), 2000);
+      reader.onload = async (e) => {
+        const dataUrl = e.target?.result as string;
+        setUploadedImage(dataUrl);
+        try {
+          const { imageUrl } = await aiService.uploadImageForSearch(file);
+          await runVisualSearch(imageUrl);
+        } catch {
+          setIsSearching(false);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -41,10 +61,15 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        setUploadedImage(e.target?.result as string);
-        setIsSearching(true);
-        setTimeout(() => setIsSearching(false), 2000);
+      reader.onload = async (e) => {
+        const dataUrl = e.target?.result as string;
+        setUploadedImage(dataUrl);
+        try {
+          const { imageUrl } = await aiService.uploadImageForSearch(file);
+          await runVisualSearch(imageUrl);
+        } catch {
+          setIsSearching(false);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -53,6 +78,7 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
   const handleReset = () => {
     setUploadedImage(null);
     setIsSearching(false);
+    setResults([]);
   };
 
   return (
@@ -135,7 +161,7 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
                   ) : (
                     <div>
                       <h3 className="font-semibold mb-2" data-testid="text-results-title">
-                        Found {mockResults.length} similar items
+                        Found {results.length} similar items
                       </h3>
                       <p className="text-sm text-muted-foreground">
                         These products match your uploaded image based on style, color, and design.
@@ -147,22 +173,13 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
 
               {!isSearching && (
                 <div className="grid grid-cols-3 gap-4">
-                  {mockResults.map((product, index) => (
+                  {results.map((product, index) => (
                     <div key={product.id} data-testid={`result-${index}`}>
-                      <div className="aspect-square bg-muted rounded-lg mb-2" />
+                      <div className="aspect-square rounded-lg mb-2 overflow-hidden">
+                        <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                      </div>
                       <p className="text-sm font-medium">{product.name}</p>
                       <p className="text-sm font-semibold text-primary">${product.price}</p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <div className="h-2 flex-1 bg-primary/20 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary rounded-full"
-                            style={{ width: `${95 - index * 10}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {95 - index * 10}% match
-                        </span>
-                      </div>
                     </div>
                   ))}
                 </div>

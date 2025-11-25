@@ -14,7 +14,8 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           <div>
-            <h3 className="font-serif text-2xl font-light mb-4" data-testid="text-footer-brand">LUXE</h3>
+            <h3 className="font-serif text-2xl font-light mb-1" data-testid="text-footer-brand">Team10</h3>
+            <p className="text-xs text-muted-foreground mb-3" data-testid="text-footer-established">Established 2025</p>
             <p className="text-sm text-muted-foreground leading-relaxed mb-4">
               Experience the future of fashion shopping with AI-powered personal styling and virtual try-on.
             </p>
