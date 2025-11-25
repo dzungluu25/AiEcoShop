@@ -86,11 +86,15 @@ export default async function runApp(
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  const host = process.env.REPLIT === 'true' ? "0.0.0.0" : "localhost";
+  
+  // Detect if running on Replit by checking for Replit-specific environment variables
+  const isReplit = !!(process.env.REPLIT_WORKSPACE || process.env.REPL_ID);
+  const host = isReplit ? "0.0.0.0" : "localhost";
+  
   server.listen({
     port,
     host,
-    reusePort: true,
+    reusePort: false,
   }, () => {
     log(`serving on port ${port}`);
   });
