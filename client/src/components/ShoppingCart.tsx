@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { cartService } from "@/lib/cart";
+import { getAuthToken } from "@/lib/api";
 
 export interface CartItem {
   id: string;
@@ -25,6 +27,8 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
   const [items, setItems] = useState<CartItem[]>(initialItems);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const { toast } = useToast();
+  const [promoCode, setPromoCode] = useState("");
+  const [serverTotals, setServerTotals] = useState<{ subtotal:number; shipping:number; discount:number; total:number } | null>(null);
 
   // Keep local state in sync when parent updates items
   React.useEffect(() => {
@@ -70,6 +74,30 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shipping = subtotal > 100 ? 0 : 10;
   const total = subtotal + shipping;
+
+  React.useEffect(() => {
+    const token = getAuthToken();
+    if (!token) return;
+    const payload = items.map(i => ({ productId: i.id, name: i.name, price: i.price, image: i.image, quantity: i.quantity, size: i.size }));
+    cartService.setCart(payload).catch(() => {});
+    cartService.quote().then(q => setServerTotals({ subtotal: q.subtotal, shipping: q.shipping, discount: q.discount, total: q.total })).catch(() => setServerTotals(null));
+  }, [items]);
+
+  const applyPromo = async () => {
+    const token = getAuthToken();
+    if (!token) return;
+    try {
+      const q = await cartService.applyCoupon(promoCode);
+      setServerTotals({ subtotal: q.subtotal, shipping: q.shipping, discount: q.discount, total: q.total });
+      if (q.codeApplied) {
+        toast({ title: "Coupon applied", description: `${q.codeApplied}` });
+      } else {
+        toast({ title: "Coupon invalid", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Coupon error", variant: "destructive" });
+    }
+  };
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
@@ -208,14 +236,18 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span data-testid="text-subtotal">${subtotal.toFixed(2)}</span>
+                <span data-testid="text-subtotal">${(serverTotals?.subtotal ?? subtotal).toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Shipping</span>
-                <span data-testid="text-shipping">
-                  {shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}
-                </span>
+                <span data-testid="text-shipping">{((serverTotals?.shipping ?? shipping) === 0) ? 'Free' : `$${(serverTotals?.shipping ?? shipping).toFixed(2)}`}</span>
               </div>
+              {serverTotals && serverTotals.discount > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Discount</span>
+                  <span data-testid="text-discount">-${serverTotals.discount.toFixed(2)}</span>
+                </div>
+              )}
               {subtotal < 100 && subtotal > 0 && (
                 <p className="text-xs text-muted-foreground">
                   Add ${(100 - subtotal).toFixed(2)} more for free shipping
@@ -224,7 +256,11 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
               <Separator />
               <div className="flex justify-between font-semibold text-base">
                 <span>Total</span>
-                <span data-testid="text-total">${total.toFixed(2)}</span>
+                <span data-testid="text-total">${(serverTotals?.total ?? total).toFixed(2)}</span>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <input className="flex-1 border rounded px-3 py-1 text-sm" placeholder="Promo code" value={promoCode} onChange={(e) => setPromoCode(e.target.value)} />
+                <Button variant="outline" onClick={applyPromo} disabled={!promoCode.trim()}>Apply</Button>
               </div>
             </div>
 

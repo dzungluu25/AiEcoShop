@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, ShoppingBag, Sparkles, Menu, X, User, LogOut, Settings, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,8 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
   const [, setLocation] = useLocation();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -58,6 +60,17 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
     enabled: debouncedQuery.length > 2,
   });
 
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setSearchFocused(false);
+        setHighlightedIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b">
       <div className="max-w-7xl mx-auto px-4">
@@ -76,21 +89,30 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
             </h1>
           </div>
 
-          <nav className="hidden lg:flex items-center gap-6">
-            {categories.map((category) => (
-              <button
-                key={category}
-                className={`text-sm font-medium tracking-wide px-3 py-1.5 rounded-md transition-colors ${activeCategory === category ? 'bg-primary/10 text-primary' : 'hover-elevate active-elevate-2'}`}
-                data-testid={`link-category-${category.toLowerCase().replace(' ', '-')}`}
-                onClick={() => onCategoryClick && onCategoryClick(category)}
-              >
-                {category}
-              </button>
-            ))}
-          </nav>
+          <div className="hidden lg:flex items-center gap-6">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="text-sm font-medium tracking-wide">
+                  Categories
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {categories.map((category) => (
+                  <DropdownMenuItem
+                    key={category}
+                    className={`${activeCategory === category ? 'text-primary' : ''}`}
+                    data-testid={`menu-category-${category.toLowerCase().replace(' ', '-')}`}
+                    onClick={() => onCategoryClick && onCategoryClick(category)}
+                  >
+                    {category}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
           <div className={`flex-1 max-w-md mx-4 transition-all ${searchFocused ? 'max-w-lg' : ''}`}>
-            <div className="relative">
+            <div className="relative" ref={dropdownRef}>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
@@ -105,20 +127,48 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
                     setLocation(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
                     setSearchFocused(false);
                   }
+                  if (e.key === 'Escape') {
+                    setSearchFocused(false);
+                    setHighlightedIndex(-1);
+                  }
+                  if (e.key === 'ArrowDown' && searchResults && searchResults.length > 0) {
+                    e.preventDefault();
+                    setHighlightedIndex((prev) => Math.min(prev + 1, searchResults.length - 1));
+                  }
+                  if (e.key === 'ArrowUp' && searchResults && searchResults.length > 0) {
+                    e.preventDefault();
+                    setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+                  }
+                  if (e.key === 'Enter' && highlightedIndex >= 0 && searchResults && searchResults[highlightedIndex]) {
+                    e.preventDefault();
+                    const p = searchResults[highlightedIndex];
+                    setLocation(`/product/${p.id}`);
+                    setSearchFocused(false);
+                  }
                 }}
                 data-testid="input-search"
               />
+              {searchQuery && (
+                <button
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => { setSearchQuery(""); setHighlightedIndex(-1); }}
+                  aria-label="Clear"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
               {searchFocused && searchResults && searchResults.length > 0 && (
                 <div className="absolute top-full mt-2 w-full bg-popover border rounded-lg shadow-lg z-50 max-h-96 overflow-auto">
-                  {searchResults.map((product) => (
+                  {searchResults.map((product, idx) => (
                     <button
                       key={product.id}
-                      className="w-full flex items-center gap-3 p-3 hover-elevate active-elevate-2 text-left"
+                      className={`w-full flex items-center gap-3 p-3 text-left ${idx === highlightedIndex ? 'bg-muted' : 'hover-elevate active-elevate-2'}`}
                       onClick={() => {
                         setSearchQuery("");
                         setSearchFocused(false);
                         setLocation(`/product/${product.id}`);
                       }}
+                      onMouseEnter={() => setHighlightedIndex(idx)}
                     >
                       <img
                         src={product.image}
@@ -131,6 +181,15 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
                       </div>
                     </button>
                   ))}
+                  <button
+                    className="w-full text-left p-3 text-sm text-muted-foreground hover:bg-muted"
+                    onClick={() => {
+                      setLocation(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                      setSearchFocused(false);
+                    }}
+                  >
+                    View all results for "{searchQuery.trim()}"
+                  </button>
                 </div>
               )}
             </div>
