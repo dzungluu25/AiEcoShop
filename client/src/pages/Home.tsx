@@ -15,6 +15,7 @@ import type { CartItem } from "@/components/ShoppingCart";
 import type { User } from "@/lib/auth";
 import { productService } from "@/lib/products";
 import { authService } from "@/lib/auth";
+import { useLocation } from "wouter";
 
 export default function Home() {
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -24,6 +25,7 @@ export default function Home() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>("All");
+  const [, setLocation] = useLocation();
 
   // Fetch products from backend
   const { data: products = [], isLoading: isLoadingProducts } = useQuery({
@@ -71,6 +73,25 @@ export default function Home() {
     checkAuth();
   }, []);
 
+  // Handle flags from other pages to open modals
+  useEffect(() => {
+    const openCart = localStorage.getItem('open_cart');
+    const openAI = localStorage.getItem('open_ai');
+    const openAuth = localStorage.getItem('open_auth');
+    if (openCart) {
+      setIsCartOpen(true);
+      localStorage.removeItem('open_cart');
+    }
+    if (openAI) {
+      setIsAIChatOpen(true);
+      localStorage.removeItem('open_ai');
+    }
+    if (openAuth) {
+      setIsAuthModalOpen(true);
+      localStorage.removeItem('open_auth');
+    }
+  }, []);
+
   const handleAddToCart = (product: Product) => {
     const existingItem = cartItems.find(item => item.id === product.id);
     
@@ -110,9 +131,16 @@ export default function Home() {
       />
 
       <main className="flex-1">
-        <Hero />
+        <Hero 
+          onShopNow={() => {
+            setActiveCategory('All');
+            const el = document.getElementById('all-items');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}
+          onTryAI={() => setIsAIChatOpen(true)}
+        />
 
-        <section className="py-16">
+        <section id="all-items" className="py-16">
           <div className="max-w-7xl mx-auto px-4 mb-12 text-center">
             <h2 className="font-serif text-4xl mb-4" data-testid="text-features-title">
               Shop with AI Intelligence
@@ -168,11 +196,12 @@ export default function Home() {
           ) : (
             <ProductGrid
               products={displayProducts}
+              onProductClick={(p) => setLocation(`/product/${p.id}`)}
               onAddToCart={handleAddToCart}
               onVisualSearch={() => setIsVisualSearchOpen(true)}
             />
           )}
-        </section>
+      </section>
       </main>
 
       <Footer />
@@ -188,7 +217,12 @@ export default function Home() {
       </Button>
 
       <AIChat isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
-      <ShoppingCart isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} items={cartItems} />
+      <ShoppingCart 
+        isOpen={isCartOpen} 
+        onClose={() => setIsCartOpen(false)} 
+        items={cartItems}
+        onItemsChange={(next) => setCartItems(next)}
+      />
       <VisualSearchModal isOpen={isVisualSearchOpen} onClose={() => setIsVisualSearchOpen(false)} />
       <AuthModal 
         isOpen={isAuthModalOpen} 

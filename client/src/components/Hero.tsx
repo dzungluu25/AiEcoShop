@@ -1,7 +1,12 @@
 import { Button } from "@/components/ui/button";
 import heroImage from "@assets/generated_images/hero_banner_lifestyle_image.png";
 
-export default function Hero() {
+interface HeroProps {
+  onShopNow?: () => void;
+  onTryAI?: () => void;
+}
+
+export default function Hero({ onShopNow, onTryAI }: HeroProps) {
   return (
     <section className="relative h-[70vh] min-h-[500px] flex items-center overflow-hidden">
       <div 
@@ -31,6 +36,7 @@ export default function Hero() {
               size="lg" 
               className="text-base px-8"
               data-testid="button-shop-now"
+              onClick={onShopNow}
             >
               Shop Now
             </Button>
@@ -39,6 +45,7 @@ export default function Hero() {
               variant="outline" 
               className="text-base px-8 bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20"
               data-testid="button-try-ai"
+              onClick={onTryAI}
             >
               Try AI Stylist
             </Button>

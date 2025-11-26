@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
-import { Search, ShoppingBag, Sparkles, Menu, X, User } from "lucide-react";
+import { Search, ShoppingBag, Sparkles, Menu, X, User, LogOut, Settings, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { productService } from "@/lib/products";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import type { User as UserType } from "@/lib/auth";
+import { authService } from "@/lib/auth";
 
 interface HeaderProps {
   onCartClick: () => void;
@@ -22,6 +25,8 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [, setLocation] = useLocation();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const categories = categoriesProp && categoriesProp.length > 0 ? categoriesProp : ["All"];
 
@@ -33,6 +38,18 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await authService.signOut();
+      // Refresh the page to clear all user data
+      window.location.reload();
+    } catch (error) {
+      console.error('Logout failed:', error);
+      setIsLoggingOut(false);
+    }
+  };
 
   // Search products
   const { data: searchResults } = useQuery({
@@ -83,6 +100,12 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setSearchFocused(true)}
                 onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchQuery.trim().length > 0) {
+                    setLocation(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                    setSearchFocused(false);
+                  }
+                }}
                 data-testid="input-search"
               />
               {searchFocused && searchResults && searchResults.length > 0 && (
@@ -94,6 +117,7 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
                       onClick={() => {
                         setSearchQuery("");
                         setSearchFocused(false);
+                        setLocation(`/product/${product.id}`);
                       }}
                     >
                       <img
@@ -142,14 +166,61 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
               )}
             </Button>
 
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onAuthClick}
-              data-testid="button-account"
-            >
-              <User className="h-5 w-5" />
-            </Button>
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    data-testid="button-account"
+                  >
+                    <User className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <div className="px-2 py-1.5 text-sm">
+                    <p className="font-medium">{user.fullname}</p>
+                    <p className="text-muted-foreground text-xs">{user.email}</p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => console.log('Navigate to orders')}>
+                    <Package className="h-4 w-4 mr-2" />
+                    My Orders
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => console.log('Navigate to settings')}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className="text-destructive"
+                  >
+                    {isLoggingOut ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                        Logging out...
+                      </div>
+                    ) : (
+                      <>
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Sign Out
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onAuthClick}
+                data-testid="button-account"
+              >
+                <User className="h-5 w-5" />
+              </Button>
+            )}
           </div>
         </div>
 

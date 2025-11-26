@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { aiService, type ChatMessage } from "@/lib/ai";
+import { useToast } from "@/hooks/use-toast";
 
 interface Message {
   id: string;
@@ -34,6 +35,8 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
     }
   ]);
   const [inputValue, setInputValue] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const { toast } = useToast();
 
   const suggestedPrompts = [
     "Show me casual outfits",
@@ -86,6 +89,54 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
         };
         setMessages(prev => [...prev, aiResponse]);
       });
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    
+    try {
+      const { imageUrl } = await aiService.uploadImageForSearch(file);
+      
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        type: 'user',
+        content: `I uploaded an image for visual search`
+      };
+      
+      setMessages(prev => [...prev, userMessage]);
+      
+      // Perform visual search
+      const results = await aiService.visualSearch({ imageUrl, limit: 3 });
+      
+      if (results.length > 0) {
+        const productMessages: Message[] = results.map((r, idx) => ({
+          id: `${Date.now() + idx}`,
+          type: 'ai',
+          content: `I found this similar product: ${r.product.name}`,
+          product: r.product,
+        }));
+        setMessages(prev => [...prev, ...productMessages]);
+      } else {
+        const aiResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'ai',
+          content: "I couldn't find similar products for your image. Try uploading a clearer image or ask me to help you find something specific.",
+        };
+        setMessages(prev => [...prev, aiResponse]);
+      }
+      
+    } catch (error) {
+      toast({
+        title: "Upload failed",
+        description: "There was an error uploading your image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -190,8 +241,23 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
             variant="outline" 
             size="icon"
             data-testid="button-upload-image"
+            disabled={isUploading}
+            asChild
           >
-            <ImageIcon className="h-4 w-4" />
+            <label className="cursor-pointer">
+              {isUploading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+              ) : (
+                <ImageIcon className="h-4 w-4" />
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+                disabled={isUploading}
+              />
+            </label>
           </Button>
           <Input
             value={inputValue}

@@ -20,6 +20,8 @@ export interface BackendProduct {
   isRecommended: boolean;
   name_lower: string;
   dateAdded: string;
+  ratingAverage?: number;
+  ratingCount?: number;
 }
 
 export interface FrontendProduct {
@@ -34,6 +36,8 @@ export interface FrontendProduct {
   sizes?: string[];
   colors?: string[];
   isFeatured?: boolean;
+  ratingAverage?: number;
+  ratingCount?: number;
 }
 
 export interface ProductDetail extends FrontendProduct {
@@ -57,6 +61,8 @@ function transformProduct(product: BackendProduct): FrontendProduct {
     sizes: product.sizes?.map(s => s.toString()),
     colors: product.availableColors,
     isFeatured: product.isFeatured,
+    ratingAverage: product.ratingAverage ?? 0,
+    ratingCount: product.ratingCount ?? 0,
   };
 }
 
@@ -74,7 +80,16 @@ function transformProductDetail(product: BackendProduct): ProductDetail {
     sizes: product.sizes?.map(s => `Size ${s}`),
     colors: product.availableColors,
     inStock: product.stock > 0,
+    ratingAverage: product.ratingAverage ?? 0,
+    ratingCount: product.ratingCount ?? 0,
   };
+}
+
+export interface ReviewEntry {
+  rating: number;
+  comment?: string;
+  user?: string;
+  createdAt?: string;
 }
 
 export const productService = {
@@ -123,5 +138,13 @@ export const productService = {
 
   async deleteProduct(id: string): Promise<void> {
     await apiClient.delete(`/products/${id}`);
+  },
+
+  async getReviews(id: string): Promise<ReviewEntry[]> {
+    return apiClient.get<ReviewEntry[]>(`/products/${id}/reviews`);
+  },
+
+  async addReview(id: string, data: { rating: number; comment?: string; user?: string }): Promise<BackendProduct> {
+    return apiClient.post<BackendProduct>(`/products/${id}/reviews`, data);
   },
 };

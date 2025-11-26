@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Heart, Camera, ShoppingBag } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Heart, Camera, ShoppingBag, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
 
 export interface Product {
   id: string;
@@ -9,6 +10,8 @@ export interface Product {
   price: number;
   image: string;
   category: string;
+  ratingAverage?: number;
+  ratingCount?: number;
 }
 
 interface ProductCardProps {
@@ -26,6 +29,60 @@ export default function ProductCard({
 }: ProductCardProps) {
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const { toast } = useToast();
+
+  // Load wishlist state from localStorage on mount
+  useEffect(() => {
+    const savedWishlist = localStorage.getItem('wishlist');
+    if (savedWishlist) {
+      const wishlist = JSON.parse(savedWishlist);
+      setIsWishlisted(wishlist.includes(product.id));
+    }
+  }, [product.id]);
+
+  const toggleWishlist = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newWishlistedState = !isWishlisted;
+    setIsWishlisted(newWishlistedState);
+    
+    // Update localStorage
+    const savedWishlist = localStorage.getItem('wishlist');
+    let wishlist = savedWishlist ? JSON.parse(savedWishlist) : [];
+    
+    if (newWishlistedState) {
+      wishlist.push(product.id);
+      toast({
+        title: "Added to wishlist",
+        description: `${product.name} has been added to your wishlist.`,
+      });
+    } else {
+      wishlist = wishlist.filter((id: string) => id !== product.id);
+      toast({
+        title: "Removed from wishlist",
+        description: `${product.name} has been removed from your wishlist.`,
+      });
+    }
+    
+    localStorage.setItem('wishlist', JSON.stringify(wishlist));
+  };
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onAddToCart) {
+      onAddToCart(product);
+      toast({
+        title: "Added to cart",
+        description: `${product.name} has been added to your cart.`,
+      });
+    }
+  };
+
+  const handleVisualSearch = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onVisualSearch) {
+      onVisualSearch(product);
+    }
+  };
 
   return (
     <Card
@@ -47,10 +104,7 @@ export default function ProductCard({
           className={`absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-full p-2 transition-all ${
             isHovered || isWishlisted ? 'opacity-100' : 'opacity-0'
           }`}
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsWishlisted(!isWishlisted);
-          }}
+          onClick={toggleWishlist}
           data-testid={`button-wishlist-${product.id}`}
         >
           <Heart 
@@ -64,10 +118,7 @@ export default function ProductCard({
               size="sm"
               variant="secondary"
               className="bg-white/95 backdrop-blur-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddToCart?.(product);
-              }}
+              onClick={handleAddToCart}
               data-testid={`button-add-cart-${product.id}`}
             >
               <ShoppingBag className="h-4 w-4 mr-2" />
@@ -77,10 +128,7 @@ export default function ProductCard({
               size="icon"
               variant="secondary"
               className="bg-white/95 backdrop-blur-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                onVisualSearch?.(product);
-              }}
+              onClick={handleVisualSearch}
               data-testid={`button-visual-search-${product.id}`}
             >
               <Camera className="h-4 w-4" />
@@ -99,6 +147,16 @@ export default function ProductCard({
         <p className="text-2xl font-semibold" data-testid={`text-price-${product.id}`}>
           ${product.price.toFixed(2)}
         </p>
+        {typeof product.ratingAverage === 'number' && (
+          <div className="mt-2 flex items-center gap-2" data-testid={`rating-${product.id}`}>
+            <div className="flex items-center">
+              {[1,2,3,4,5].map(i => (
+                <Star key={i} className={`h-4 w-4 ${i <= Math.round((product.ratingAverage || 0)) ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground'}`} />
+              ))}
+            </div>
+            <span className="text-xs text-muted-foreground">{(product.ratingAverage || 0).toFixed(1)} ({product.ratingCount || 0})</span>
+          </div>
+        )}
       </div>
     </Card>
   );

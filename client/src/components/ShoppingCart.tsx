@@ -1,8 +1,9 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { X, Minus, Plus, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/hooks/use-toast";
 
 export interface CartItem {
   id: string;
@@ -17,28 +18,92 @@ interface ShoppingCartProps {
   isOpen: boolean;
   onClose: () => void;
   items?: CartItem[];
+  onItemsChange?: (items: CartItem[]) => void;
 }
 
-export default function ShoppingCart({ isOpen, onClose, items: initialItems = [] }: ShoppingCartProps) {
+export default function ShoppingCart({ isOpen, onClose, items: initialItems = [], onItemsChange }: ShoppingCartProps) {
   const [items, setItems] = useState<CartItem[]>(initialItems);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const { toast } = useToast();
+
+  // Keep local state in sync when parent updates items
+  React.useEffect(() => {
+    setItems(initialItems);
+  }, [initialItems]);
+
+  const commit = (next: CartItem[]) => {
+    setItems(next);
+    onItemsChange?.(next);
+  };
 
   const updateQuantity = (id: string, delta: number) => {
-    setItems(prev =>
-      prev.map(item =>
-        item.id === id
-          ? { ...item, quantity: Math.max(1, item.quantity + delta) }
-          : item
-      )
+    const next = items.map(item =>
+      item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item
     );
+    commit(next);
   };
 
   const removeItem = (id: string) => {
-    setItems(prev => prev.filter(item => item.id !== id));
+    const itemToRemove = items.find(item => item.id === id);
+    if (!itemToRemove) return;
+    
+    commit(items.filter(item => item.id !== id));
+    
+    // Show toast notification with undo option
+    toast({
+      title: "Item removed",
+      description: `${itemToRemove.name} was removed from your cart`,
+      action: (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            commit([...items, itemToRemove]);
+          }}
+        >
+          Undo
+        </Button>
+      ),
+    });
   };
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shipping = subtotal > 100 ? 0 : 10;
   const total = subtotal + shipping;
+
+  const handleCheckout = async () => {
+    if (items.length === 0) return;
+    
+    setIsCheckingOut(true);
+    
+    try {
+      // Simulate checkout process
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Clear cart after successful checkout
+      setItems([]);
+      
+      toast({
+        title: "Checkout successful!",
+        description: "Your order has been placed and will be processed shortly.",
+        duration: 5000,
+      });
+      
+      // Close cart after successful checkout
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+      
+    } catch (error) {
+      toast({
+        title: "Checkout failed",
+        description: "There was an error processing your order. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -163,8 +228,21 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
               </div>
             </div>
 
-            <Button className="w-full" size="lg" data-testid="button-checkout">
-              Proceed to Checkout
+            <Button 
+              className="w-full" 
+              size="lg" 
+              data-testid="button-checkout"
+              onClick={handleCheckout}
+              disabled={isCheckingOut || items.length === 0}
+            >
+              {isCheckingOut ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                  Processing...
+                </>
+              ) : (
+                `Proceed to Checkout ($${total.toFixed(2)})`
+              )}
             </Button>
           </div>
         </>

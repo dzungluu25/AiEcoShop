@@ -1,9 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Upload, X, Camera, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import ProductCard, { type Product } from "./ProductCard";
 import { aiService, type VisualSearchResult } from "@/lib/ai";
+import { useToast } from "@/hooks/use-toast";
 
 interface VisualSearchModalProps {
   isOpen: boolean;
@@ -16,6 +17,11 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
   const [isDragging, setIsDragging] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<Product[]>([]);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { toast } = useToast();
 
   const runVisualSearch = async (imageUrl: string) => {
     setIsSearching(true);
@@ -79,6 +85,80 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
     setUploadedImage(null);
     setIsSearching(false);
     setResults([]);
+    setCameraError(null);
+    setIsCameraActive(false);
+  };
+
+  const startCamera = async () => {
+    try {
+      setCameraError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      });
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setIsCameraActive(true);
+      }
+    } catch (error) {
+      setCameraError('Camera access denied. Please allow camera access to use this feature.');
+      toast({
+        title: "Camera access denied",
+        description: "Please allow camera access in your browser settings to use this feature.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      setUploadedImage(dataUrl);
+      
+      // Stop camera stream
+      const stream = video.srcObject as MediaStream;
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      setIsCameraActive(false);
+      
+      // Process the captured image
+      canvas.toBlob(async (blob) => {
+        if (blob) {
+          const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
+          try {
+            const { imageUrl } = await aiService.uploadImageForSearch(file);
+            await runVisualSearch(imageUrl);
+          } catch (error) {
+            toast({
+              title: "Image processing failed",
+              description: "There was an error processing your photo. Please try again.",
+              variant: "destructive",
+            });
+          }
+        }
+      }, 'image/jpeg');
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    }
+    setIsCameraActive(false);
   };
 
   return (
@@ -123,7 +203,7 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
                     />
                   </label>
                 </Button>
-                <Button variant="outline" data-testid="button-use-camera">
+                <Button variant="outline" data-testid="button-use-camera" onClick={startCamera}>
                   <Camera className="h-4 w-4 mr-2" />
                   Use Camera
                 </Button>
@@ -131,24 +211,49 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="flex items-start gap-4">
-                <div className="relative flex-shrink-0">
-                  <img
-                    src={uploadedImage}
-                    alt="Uploaded"
-                    className="w-48 h-48 object-cover rounded-lg"
-                    data-testid="img-uploaded"
-                  />
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="absolute -top-2 -right-2"
-                    onClick={handleReset}
-                    data-testid="button-remove-image"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+              {isCameraActive ? (
+                <div className="space-y-4">
+                  <div className="relative">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      className="w-full max-w-md mx-auto rounded-lg"
+                    />
+                    <canvas ref={canvasRef} className="hidden" />
+                  </div>
+                  <div className="flex justify-center gap-3">
+                    <Button onClick={capturePhoto}>
+                      <Camera className="h-4 w-4 mr-2" />
+                      Capture Photo
+                    </Button>
+                    <Button variant="outline" onClick={stopCamera}>
+                      Cancel
+                    </Button>
+                  </div>
+                  {cameraError && (
+                    <p className="text-sm text-destructive text-center">{cameraError}</p>
+                  )}
                 </div>
+              ) : (
+                <div className="flex items-start gap-4">
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={uploadedImage}
+                      alt="Uploaded"
+                      className="w-48 h-48 object-cover rounded-lg"
+                      data-testid="img-uploaded"
+                    />
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      className="absolute -top-2 -right-2"
+                      onClick={handleReset}
+                      data-testid="button-remove-image"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
 
                 <div className="flex-1">
                   {isSearching ? (
@@ -164,13 +269,14 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
                         Found {results.length} similar items
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        These products match your uploaded image based on style, color, and design.
-                      </p>
-                    </div>
-                  )}
+                    These products match your uploaded image based on style, color, and design.
+                  </p>
                 </div>
-              </div>
-
+              )}
+                </div>
+                </div>
+              )}
+              
               {!isSearching && (
                 <div className="grid grid-cols-3 gap-4">
                   {results.map((product, index) => (

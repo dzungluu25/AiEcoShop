@@ -14,7 +14,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           <div>
-            <h3 className="font-serif text-2xl font-light mb-1" data-testid="text-footer-brand">Team10</h3>
+            <h3 className="font-serif text-2xl font-light mb-1" data-testid="text-footer-brand">LUXE</h3>
             <p className="text-xs text-muted-foreground mb-3" data-testid="text-footer-established">Established 2025</p>
             <p className="text-sm text-muted-foreground leading-relaxed mb-4">
               Experience the future of fashion shopping with AI-powered personal styling and virtual try-on.
@@ -69,7 +69,7 @@ export default function Footer() {
         <div className="pt-8 border-t">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-muted-foreground" data-testid="text-copyright">
-              © 2024 LUXE. All rights reserved.
+              © 2025 LUXE. All rights reserved.
             </p>
             <div className="flex gap-6">
               <button className="text-sm text-muted-foreground hover:text-foreground" data-testid="link-privacy">
