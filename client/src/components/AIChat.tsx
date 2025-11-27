@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Send, X, Sparkles, Image as ImageIcon } from "lucide-react";
+import React, { useState } from "react";
+import { Send, X, Sparkles, Image as ImageIcon, Mic, Volume2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { aiService, type ChatMessage } from "@/lib/ai";
 import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/lib/api";
 
 interface Message {
   id: string;
@@ -45,8 +46,83 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
     "Help me match this"
   ];
 
+  const [isSending, setIsSending] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported] = useState<boolean>(typeof window !== 'undefined' && (!!(window as any).webkitSpeechRecognition || !!(window as any).SpeechRecognition));
+  const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [voiceLang, setVoiceLang] = useState('en-US');
+  const [voiceRate, setVoiceRate] = useState(1);
+  const [voicePitch, setVoicePitch] = useState(1);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voiceName, setVoiceName] = useState<string>('');
+
+  // Load available voices and keep list updated without causing re-render loops
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    const update = () => {
+      const vs = window.speechSynthesis.getVoices();
+      setVoices(vs);
+    };
+    // Attach listener and fetch initial
+    (window.speechSynthesis as any).onvoiceschanged = update;
+    update();
+    return () => {
+      (window.speechSynthesis as any).onvoiceschanged = null;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!voiceName && voices.length > 0) {
+      setVoiceName(voices[0].name);
+    }
+  }, [voices, voiceName]);
+
+  const startVoice = () => {
+    if (!voiceSupported || isListening) return;
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    const rec = new SR();
+    rec.lang = voiceLang;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    let finalText = '';
+    const t0 = performance.now();
+    rec.onresult = (e: any) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const transcript = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += transcript;
+        setInputValue(transcript);
+      }
+    };
+    rec.onend = () => {
+      setIsListening(false);
+      const dt = performance.now() - t0;
+      apiClient.post('/ai/metrics/events', { type: 'voice_latency', value: dt }).catch(() => {});
+      if (finalText.trim().length > 0) {
+        setInputValue(finalText.trim());
+        handleSend();
+      }
+    };
+    rec.onerror = () => { setIsListening(false); apiClient.post('/ai/metrics/events', { type: 'voice_error' }).catch(() => {}); };
+    setIsListening(true);
+    rec.start();
+  };
+
+  const speak = (text: string) => {
+    if (!ttsEnabled) return;
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = voiceLang;
+    u.rate = Math.min(2, Math.max(0.5, voiceRate));
+    u.pitch = Math.min(2, Math.max(0, voicePitch));
+    const v = voices.find(v => v.name === voiceName);
+    if (v) u.voice = v;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  };
+
   const handleSend = () => {
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || isSending) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -62,16 +138,20 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
       content: m.content,
     }));
 
+    setIsSending(true);
     aiService.chat({ messages: chatMessages })
       .then(res => {
+        apiClient.post('/ai/metrics/events', { type: 'chat_message' }).catch(() => {});
         const aiResponse: Message = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
           content: res.message,
         };
         setMessages(prev => [...prev, aiResponse]);
+        speak(res.message);
 
         if (res.recommendations && res.recommendations.length > 0) {
+          apiClient.post('/ai/metrics/events', { type: 'recommendations' }).catch(() => {});
           const productMessages: Message[] = res.recommendations.map((r, idx) => ({
             id: `${Date.now() + 2 + idx}`,
             type: 'ai',
@@ -79,6 +159,17 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
             product: r.product,
           }));
           setMessages(prev => [...prev, ...productMessages]);
+        }
+        if ((res as any).orderStatus) {
+          const status = (res as any).orderStatus;
+          const statusMsg: Message = {
+            id: (Date.now() + 3).toString(),
+            type: 'ai',
+            content: `Order ${status.orderId}: ${status.status}, ETA ${status.eta}`,
+          };
+          setMessages(prev => [...prev, statusMsg]);
+          apiClient.post('/ai/metrics/events', { type: 'order_status' }).catch(() => {});
+          speak(statusMsg.content);
         }
       })
       .catch(() => {
@@ -88,7 +179,8 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
           content: "Sorry, I couldn't process that right now. Please try again.",
         };
         setMessages(prev => [...prev, aiResponse]);
-      });
+      })
+      .finally(() => setIsSending(false));
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -259,14 +351,52 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
               />
             </label>
           </Button>
-          <Input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask me anything..."
-            className="flex-1"
-            data-testid="input-chat-message"
-          />
+          <Button
+            variant="outline"
+            size="icon"
+            disabled={!voiceSupported || isListening}
+            onClick={startVoice}
+            aria-label="Start voice input"
+            data-testid="button-voice"
+          >
+            {isListening ? (
+              <div className="animate-pulse"><Mic className="h-4 w-4" /></div>
+            ) : (
+              <Mic className="h-4 w-4" />
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setTtsEnabled(v => !v)}
+            aria-label="Toggle voice playback"
+            data-testid="button-tts"
+          >
+            <Volume2 className={`h-4 w-4 ${ttsEnabled ? '' : 'opacity-40'}`} />
+          </Button>
+          {/* Voice configuration */}
+          <select className="border rounded px-2 text-sm" value={voiceLang} onChange={(e) => setVoiceLang(e.target.value)} aria-label="Voice language">
+            <option value="en-US">English (US)</option>
+            <option value="en-GB">English (UK)</option>
+            <option value="vi-VN">Vietnamese</option>
+          </select>
+          <select className="border rounded px-2 text-sm" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} aria-label="Voice">
+            {voices.map(v => (<option key={v.name} value={v.name}>{v.name}</option>))}
+          </select>
+          <input type="range" min={0.5} max={2} step={0.1} value={voiceRate} onChange={(e) => setVoiceRate(parseFloat(e.target.value))} aria-label="Voice rate" />
+          <input type="range" min={0} max={2} step={0.1} value={voicePitch} onChange={(e) => setVoicePitch(parseFloat(e.target.value))} aria-label="Voice pitch" />
+          <div className="relative flex-1 min-w-0 group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+              placeholder="Ask me anything..."
+              aria-label="Chat input"
+              className="w-full pl-10 pr-12 rounded-full bg-background border transition-all duration-200 ease-out focus:ring-2 focus:ring-primary/30 focus:border-primary/30"
+              data-testid="input-chat-message"
+            />
+          </div>
           <Button 
             onClick={handleSend}
             disabled={!inputValue.trim()}

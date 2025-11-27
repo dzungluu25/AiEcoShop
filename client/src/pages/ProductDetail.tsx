@@ -26,10 +26,13 @@ export default function ProductDetail() {
 
   const [newRating, setNewRating] = useState<number>(0);
   const [newComment, setNewComment] = useState<string>("");
+  const [isAdding, setIsAdding] = useState(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   const addToCart = () => {
     if (!product) return;
     try {
+      setIsAdding(true);
       const stored = localStorage.getItem("cart_items");
       const items = stored ? JSON.parse(stored) : [];
       const existing = items.find((i: any) => i.id === product.id);
@@ -43,6 +46,7 @@ export default function ProductDetail() {
       localStorage.setItem('open_cart', '1');
       setLocation('/');
     } catch {}
+    finally { setIsAdding(false); }
   };
 
   if (!match) {
@@ -133,9 +137,11 @@ export default function ProductDetail() {
               )}
 
               <div className="flex gap-3 pt-2">
-                <Button onClick={addToCart} data-testid="button-detail-add">Add to Cart</Button>
+                <Button onClick={addToCart} data-testid="button-detail-add" aria-label="Add to cart" disabled={isAdding}>
+                  {isAdding ? 'Adding...' : 'Add to Cart'}
+                </Button>
                 <Link href="/">
-                  <Button variant="outline">Back</Button>
+                  <Button variant="outline" aria-label="Back to home">Back</Button>
                 </Link>
               </div>
               <div className="pt-6">
@@ -174,18 +180,21 @@ export default function ProductDetail() {
                     onChange={(e) => setNewComment(e.target.value)}
                   />
                   <Button
-                    disabled={newRating === 0}
+                    aria-label="Submit review"
+                    disabled={newRating === 0 || isSubmittingReview}
                     onClick={async () => {
                       if (!product) return;
                       try {
+                        setIsSubmittingReview(true);
                         await productService.addReview(product.id, { rating: newRating, comment: newComment });
                         setNewRating(0);
                         setNewComment("");
                         refetchReviews();
                       } catch {}
+                      finally { setIsSubmittingReview(false); }
                     }}
                   >
-                    Submit Review
+                    {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
                   </Button>
                 </div>
               </div>

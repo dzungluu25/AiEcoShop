@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/lib/auth";
+import { apiClient, setAuthToken } from "@/lib/api";
 import type { User } from "@/lib/auth";
 
 interface AuthModalProps {
@@ -18,6 +19,7 @@ interface AuthModalProps {
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const [isOauthLoading, setIsOauthLoading] = useState(false);
 
   const [signUpData, setSignUpData] = useState({
     email: "",
@@ -76,6 +78,33 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
     }
   };
 
+  const startOAuth = async (provider: 'google' | 'facebook') => {
+    try {
+      setIsOauthLoading(true);
+      const urlResp = await apiClient.get<{ url: string }>(`/auth/oauth/${provider}/url`);
+      const authUrl = urlResp.url;
+      window.open(authUrl, `${provider}-oauth`, 'width=500,height=600');
+      const onMessage = (evt: MessageEvent) => {
+        if (!evt.data || typeof evt.data !== 'object') return;
+        if (evt.data.type === 'oauth-success') {
+          setAuthToken(evt.data.token);
+          toast({ title: 'Signed in with ' + provider });
+          window.removeEventListener('message', onMessage);
+          onAuthSuccess(evt.data.user);
+          onClose();
+        } else if (evt.data.type === 'oauth-error') {
+          toast({ title: 'Authentication failed', description: evt.data.message, variant: 'destructive' });
+          window.removeEventListener('message', onMessage);
+        }
+        setIsOauthLoading(false);
+      };
+      window.addEventListener('message', onMessage);
+    } catch (e: any) {
+      setIsOauthLoading(false);
+      toast({ title: 'Unable to start authentication', description: e?.message ?? 'Unknown error', variant: 'destructive' });
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
@@ -116,10 +145,18 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
                 />
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-signin">
-                {isLoading ? "Signing in..." : "Sign In"}
-              </Button>
-            </form>
+          <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-signin">
+            {isLoading ? "Signing in..." : "Sign In"}
+          </Button>
+          <div className="flex items-center gap-3 mt-3">
+            <Button variant="outline" aria-label="Continue with Google" onClick={() => startOAuth('google')} disabled={isOauthLoading} data-testid="button-google">
+              {isOauthLoading ? 'Loading...' : 'Continue with Google'}
+            </Button>
+            <Button variant="outline" aria-label="Continue with Facebook" onClick={() => startOAuth('facebook')} disabled={isOauthLoading} data-testid="button-facebook">
+              {isOauthLoading ? 'Loading...' : 'Continue with Facebook'}
+            </Button>
+          </div>
+        </form>
           </TabsContent>
 
           <TabsContent value="signup">

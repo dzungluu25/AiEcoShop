@@ -30,11 +30,13 @@ export const cartService = {
   async removeItem(productId: string): Promise<CartItemPayload[]> {
     return apiClient.delete<CartItemPayload[]>(`/cart/item/${productId}`);
   },
-  async quote(): Promise<QuoteResponse> {
-    return apiClient.post<QuoteResponse>('/cart/quote', {});
+  async quote(items?: CartItemPayload[]): Promise<QuoteResponse> {
+    const payload = items ? { items } : {};
+    return apiClient.post<QuoteResponse>('/cart/quote', payload);
   },
-  async applyCoupon(code: string): Promise<QuoteResponse> {
-    return apiClient.post<QuoteResponse>('/cart/apply-coupon', { code });
+  async applyCoupon(code: string, items?: CartItemPayload[]): Promise<QuoteResponse> {
+    const payload: any = { code };
+    if (items) payload.items = items;
+    return apiClient.post<QuoteResponse>('/cart/apply-coupon', payload);
   },
 };
-

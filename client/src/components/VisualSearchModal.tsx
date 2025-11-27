@@ -18,6 +18,7 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<Product[]>([]);
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -48,6 +49,7 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
 
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith('image/')) {
+      setIsUploading(true);
       const reader = new FileReader();
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
@@ -58,6 +60,7 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
         } catch {
           setIsSearching(false);
         }
+        setIsUploading(false);
       };
       reader.readAsDataURL(file);
     }
@@ -66,6 +69,7 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setIsUploading(true);
       const reader = new FileReader();
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
@@ -76,6 +80,7 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
         } catch {
           setIsSearching(false);
         }
+        setIsUploading(false);
       };
       reader.readAsDataURL(file);
     }
@@ -163,7 +168,7 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" aria-label="Visual search dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Camera className="h-5 w-5" />
@@ -191,10 +196,10 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
                 Drag and drop an image here, or click to browse
               </p>
               <div className="flex justify-center gap-3">
-                <Button asChild data-testid="button-upload-file">
+                <Button asChild data-testid="button-upload-file" aria-label="Upload image" disabled={isUploading}>
                   <label>
                     <Upload className="h-4 w-4 mr-2" />
-                    Upload Image
+                    {isUploading ? 'Uploading...' : 'Upload Image'}
                     <input
                       type="file"
                       accept="image/*"
@@ -203,7 +208,7 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
                     />
                   </label>
                 </Button>
-                <Button variant="outline" data-testid="button-use-camera" onClick={startCamera}>
+                <Button variant="outline" data-testid="button-use-camera" onClick={startCamera} aria-label="Use camera">
                   <Camera className="h-4 w-4 mr-2" />
                   Use Camera
                 </Button>
@@ -249,6 +254,7 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
                       variant="secondary"
                       className="absolute -top-2 -right-2"
                       onClick={handleReset}
+                      aria-label="Remove image"
                       data-testid="button-remove-image"
                     >
                       <X className="h-4 w-4" />

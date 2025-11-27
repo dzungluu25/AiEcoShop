@@ -6,6 +6,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { cartService } from "@/lib/cart";
 import { getAuthToken } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { productService, type FrontendProduct } from "@/lib/products";
 
 export interface CartItem {
   id: string;
@@ -29,6 +31,8 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
   const { toast } = useToast();
   const [promoCode, setPromoCode] = useState("");
   const [serverTotals, setServerTotals] = useState<{ subtotal:number; shipping:number; discount:number; total:number } | null>(null);
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [addingProductId, setAddingProductId] = useState<string | null>(null);
 
   // Keep local state in sync when parent updates items
   React.useEffect(() => {
@@ -77,26 +81,30 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
 
   React.useEffect(() => {
     const token = getAuthToken();
-    if (!token) return;
     const payload = items.map(i => ({ productId: i.id, name: i.name, price: i.price, image: i.image, quantity: i.quantity, size: i.size }));
-    cartService.setCart(payload).catch(() => {});
-    cartService.quote().then(q => setServerTotals({ subtotal: q.subtotal, shipping: q.shipping, discount: q.discount, total: q.total })).catch(() => setServerTotals(null));
+    if (token) {
+      cartService.setCart(payload).catch(() => {});
+      cartService.quote().then(q => setServerTotals({ subtotal: q.subtotal, shipping: q.shipping, discount: q.discount, total: q.total })).catch(() => setServerTotals(null));
+    } else {
+      cartService.quote(payload).then(q => setServerTotals({ subtotal: q.subtotal, shipping: q.shipping, discount: q.discount, total: q.total })).catch(() => setServerTotals(null));
+    }
   }, [items]);
 
   const applyPromo = async () => {
-    const token = getAuthToken();
-    if (!token) return;
     try {
-      const q = await cartService.applyCoupon(promoCode);
+      setIsApplyingCoupon(true);
+      const payload = items.map(i => ({ productId: i.id, name: i.name, price: i.price, image: i.image, quantity: i.quantity, size: i.size }));
+      const q = await cartService.applyCoupon(promoCode.trim().toUpperCase(), payload);
       setServerTotals({ subtotal: q.subtotal, shipping: q.shipping, discount: q.discount, total: q.total });
       if (q.codeApplied) {
         toast({ title: "Coupon applied", description: `${q.codeApplied}` });
       } else {
         toast({ title: "Coupon invalid", variant: "destructive" });
       }
-    } catch {
-      toast({ title: "Coupon error", variant: "destructive" });
-    }
+    } catch (e: any) {
+      const message = typeof e?.message === 'string' ? e.message : 'Coupon error';
+      toast({ title: "Coupon not applied", description: message, variant: "destructive" });
+    } finally { setIsApplyingCoupon(false); }
   };
 
   const handleCheckout = async () => {
@@ -130,6 +138,31 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
       });
     } finally {
       setIsCheckingOut(false);
+    }
+  };
+
+  const { data: recommended = [] } = useQuery({
+    queryKey: ['/api/products/recommended'],
+    queryFn: async () => {
+      const all = await productService.getAllProducts({ limit: 9 });
+      return all.slice(0, 6);
+    }
+  });
+
+  const addProductToCart = (p: FrontendProduct, selectedSize?: string) => {
+    setAddingProductId(p.id);
+    try {
+      const existing = items.find(i => i.id === p.id && (!selectedSize || i.size === selectedSize));
+      let next: CartItem[];
+      if (existing) {
+        next = items.map(i => i.id === existing.id && i.size === existing.size ? { ...i, quantity: i.quantity + 1 } : i);
+      } else {
+        next = [...items, { id: p.id, name: p.name, price: p.price, image: p.image, quantity: 1, size: selectedSize }];
+      }
+      commit(next);
+      toast({ title: 'Added to cart', description: `${p.name}${selectedSize ? ' (' + selectedSize + ')' : ''}` });
+    } finally {
+      setAddingProductId(null);
     }
   };
 
@@ -230,6 +263,32 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
                 </div>
               ))}
             </div>
+            <div className="mt-6">
+              <h3 className="text-sm font-medium mb-2">Add more items</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {recommended.map((p) => (
+                  <div key={p.id} className="border rounded p-3">
+                    <img src={p.image} alt={p.name} className="w-full h-24 object-cover rounded mb-2" />
+                    <p className="text-sm font-medium truncate">{p.name}</p>
+                    <p className="text-sm text-muted-foreground">${p.price.toFixed(2)}</p>
+                    {p.sizes && p.sizes.length > 0 && (
+                      <select aria-label={`Select size for ${p.name}`} className="mt-2 w-full border rounded px-2 py-1 text-sm" defaultValue={p.sizes[0]} onChange={(e) => (p as any)._selectedSize = e.target.value}>
+                        {p.sizes.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    )}
+                    <Button
+                      className="mt-2 w-full"
+                      size="sm"
+                      aria-label={`Add ${p.name} to cart`}
+                      disabled={addingProductId === p.id}
+                      onClick={() => addProductToCart(p, (p as any)._selectedSize)}
+                    >
+                      {addingProductId === p.id ? 'Adding...' : 'Add to Cart'}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </ScrollArea>
 
           <div className="border-t p-4 space-y-4">
@@ -259,8 +318,10 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
                 <span data-testid="text-total">${(serverTotals?.total ?? total).toFixed(2)}</span>
               </div>
               <div className="flex gap-2 pt-2">
-                <input className="flex-1 border rounded px-3 py-1 text-sm" placeholder="Promo code" value={promoCode} onChange={(e) => setPromoCode(e.target.value)} />
-                <Button variant="outline" onClick={applyPromo} disabled={!promoCode.trim()}>Apply</Button>
+                <input className="flex-1 border rounded px-3 py-1 text-sm" placeholder="Promo code" aria-label="Promo code" value={promoCode} onChange={(e) => setPromoCode(e.target.value)} />
+                <Button variant="outline" onClick={applyPromo} disabled={!promoCode.trim() || isApplyingCoupon} aria-label="Apply coupon">
+                  {isApplyingCoupon ? 'Applying...' : 'Apply'}
+                </Button>
               </div>
             </div>
 

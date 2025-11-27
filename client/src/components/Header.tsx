@@ -146,13 +146,14 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
                     setSearchFocused(false);
                   }
                 }}
+                aria-label="Search"
                 data-testid="input-search"
               />
               {searchQuery && (
                 <button
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   onClick={() => { setSearchQuery(""); setHighlightedIndex(-1); }}
-                  aria-label="Clear"
+                  aria-label="Clear search"
                 >
                   <X className="h-4 w-4" />
                 </button>

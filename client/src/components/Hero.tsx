@@ -36,6 +36,7 @@ export default function Hero({ onShopNow, onTryAI }: HeroProps) {
               size="lg" 
               className="text-base px-8"
               data-testid="button-shop-now"
+              aria-label="Shop now"
               onClick={onShopNow}
             >
               Shop Now
@@ -45,6 +46,7 @@ export default function Hero({ onShopNow, onTryAI }: HeroProps) {
               variant="outline" 
               className="text-base px-8 bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20"
               data-testid="button-try-ai"
+              aria-label="Try AI stylist"
               onClick={onTryAI}
             >
               Try AI Stylist
