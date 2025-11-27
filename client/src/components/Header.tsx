@@ -94,7 +94,7 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
             </button>
             
             <h1 className="font-serif text-2xl font-light tracking-wide" data-testid="text-logo">
-              Team10
+                LUXE
             </h1>
           </div>
 

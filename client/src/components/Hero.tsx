@@ -22,14 +22,14 @@ export default function Hero({ onShopNow, onTryAI }: HeroProps) {
             className="font-serif text-5xl lg:text-7xl font-light text-white mb-6 leading-tight"
             data-testid="text-hero-title"
           >
-            Discover Your Perfect Style
+            Discover New Way To Shopping
           </h2>
           <p 
             className="text-lg text-white/90 mb-8 leading-relaxed"
             data-testid="text-hero-description"
           >
             Experience AI-powered personal shopping with virtual try-on technology. 
-            Find curated collections tailored just for you.
+            Find best product just for you.
           </p>
           <div className="flex flex-wrap gap-4">
             <Button 
@@ -49,7 +49,7 @@ export default function Hero({ onShopNow, onTryAI }: HeroProps) {
               aria-label="Try AI stylist"
               onClick={onTryAI}
             >
-              Try AI Stylist
+              Try AI Feature
             </Button>
           </div>
         </div>
