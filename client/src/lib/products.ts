@@ -147,4 +147,7 @@ export const productService = {
   async addReview(id: string, data: { rating: number; comment?: string; user?: string }): Promise<BackendProduct> {
     return apiClient.post<BackendProduct>(`/products/${id}/reviews`, data);
   },
+  async uploadImage(file: File): Promise<{ url: string }> {
+    return apiClient.uploadFile<{ url: string }>(`/storage/temp`, file, 'product');
+  },
 };

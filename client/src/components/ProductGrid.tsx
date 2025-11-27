@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ProductCard, { type Product } from "./ProductCard";
+import { formatPrice } from "@/lib/utils";
 
 interface ProductGridProps {
   products: Product[];
@@ -91,8 +92,8 @@ export default function ProductGrid({
             data-testid="slider-price"
           />
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span data-testid="text-price-min">${priceRange[0]}</span>
-            <span data-testid="text-price-max">${priceRange[1]}</span>
+            <span data-testid="text-price-min">{formatPrice(priceRange[0])}</span>
+            <span data-testid="text-price-max">{formatPrice(priceRange[1])}</span>
           </div>
         </CollapsibleContent>
       </Collapsible>

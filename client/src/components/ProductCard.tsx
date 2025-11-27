@@ -3,6 +3,7 @@ import { Heart, Camera, ShoppingBag, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { formatPrice, t } from "@/lib/utils";
 
 export interface Product {
   id: string;
@@ -122,7 +123,7 @@ export default function ProductCard({
               data-testid={`button-add-cart-${product.id}`}
             >
               <ShoppingBag className="h-4 w-4 mr-2" />
-              Add to Cart
+              {t('Add to Cart')}
             </Button>
             <Button
               size="icon"
@@ -145,7 +146,7 @@ export default function ProductCard({
           {product.name}
         </h3>
         <p className="text-2xl font-semibold" data-testid={`text-price-${product.id}`}>
-          ${product.price.toFixed(2)}
+          {formatPrice(product.price)}
         </p>
         {typeof product.ratingAverage === 'number' && (
           <div className="mt-2 flex items-center gap-2" data-testid={`rating-${product.id}`}>

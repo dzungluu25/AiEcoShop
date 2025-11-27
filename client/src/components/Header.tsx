@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, ShoppingBag, Sparkles, Menu, X, User, LogOut, Settings, Package } from "lucide-react";
+import { Search, ShoppingBag, Sparkles, Menu, X, User, LogOut, Settings, Package, Globe, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { productService } from "@/lib/products";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import type { User as UserType } from "@/lib/auth";
 import { authService } from "@/lib/auth";
+import { formatPrice, getCurrency, setCurrency, getLanguage, setLanguage, t } from "@/lib/utils";
 
 interface HeaderProps {
   onCartClick: () => void;
@@ -29,6 +30,9 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const [, setLocation] = useLocation();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const openSettings = () => setLocation('/account/settings');
+  const [currency, setCurrencyState] = useState(getCurrency());
+  const [language, setLanguageState] = useState(getLanguage());
 
   const categories = categoriesProp && categoriesProp.length > 0 ? categoriesProp : ["All"];
 
@@ -59,6 +63,11 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
     queryFn: () => productService.searchProducts(debouncedQuery, 5),
     enabled: debouncedQuery.length > 2,
   });
+  const { data: recommended = [] } = useQuery({
+    queryKey: ['/api/products/recommended'],
+    queryFn: () => productService.getRecommendedProducts(),
+  });
+  const displayedProducts = (searchQuery.trim().length > 2 ? (searchResults || []) : recommended.slice(0,20));
 
   useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {
@@ -131,17 +140,17 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
                     setSearchFocused(false);
                     setHighlightedIndex(-1);
                   }
-                  if (e.key === 'ArrowDown' && searchResults && searchResults.length > 0) {
+                  if (e.key === 'ArrowDown' && displayedProducts && displayedProducts.length > 0) {
                     e.preventDefault();
-                    setHighlightedIndex((prev) => Math.min(prev + 1, searchResults.length - 1));
+                    setHighlightedIndex((prev) => Math.min(prev + 1, displayedProducts.length - 1));
                   }
-                  if (e.key === 'ArrowUp' && searchResults && searchResults.length > 0) {
+                  if (e.key === 'ArrowUp' && displayedProducts && displayedProducts.length > 0) {
                     e.preventDefault();
                     setHighlightedIndex((prev) => Math.max(prev - 1, 0));
                   }
-                  if (e.key === 'Enter' && highlightedIndex >= 0 && searchResults && searchResults[highlightedIndex]) {
+                  if (e.key === 'Enter' && highlightedIndex >= 0 && displayedProducts && displayedProducts[highlightedIndex]) {
                     e.preventDefault();
-                    const p = searchResults[highlightedIndex];
+                    const p = displayedProducts[highlightedIndex];
                     setLocation(`/product/${p.id}`);
                     setSearchFocused(false);
                   }
@@ -158,9 +167,12 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
                   <X className="h-4 w-4" />
                 </button>
               )}
-              {searchFocused && searchResults && searchResults.length > 0 && (
+              {searchFocused && displayedProducts && displayedProducts.length > 0 && (
                 <div className="absolute top-full mt-2 w-full bg-popover border rounded-lg shadow-lg z-50 max-h-96 overflow-auto">
-                  {searchResults.map((product, idx) => (
+                  {searchQuery.trim().length <= 2 && (
+                    <div className="px-3 py-2 text-xs text-muted-foreground uppercase tracking-wide">Recommended</div>
+                  )}
+                  {displayedProducts.map((product, idx) => (
                     <button
                       key={product.id}
                       className={`w-full flex items-center gap-3 p-3 text-left ${idx === highlightedIndex ? 'bg-muted' : 'hover-elevate active-elevate-2'}`}
@@ -178,25 +190,59 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{product.name}</p>
-                        <p className="text-sm text-muted-foreground">${product.price.toFixed(2)}</p>
+                        <p className="text-sm text-muted-foreground">{formatPrice(product.price)}</p>
                       </div>
                     </button>
                   ))}
-                  <button
-                    className="w-full text-left p-3 text-sm text-muted-foreground hover:bg-muted"
-                    onClick={() => {
-                      setLocation(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-                      setSearchFocused(false);
-                    }}
-                  >
-                    View all results for "{searchQuery.trim()}"
-                  </button>
+                  {searchQuery.trim().length > 0 && (
+                    <button
+                      className="w-full text-left p-3 text-sm text-muted-foreground hover:bg-muted"
+                      onClick={() => {
+                        setLocation(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                        setSearchFocused(false);
+                      }}
+                    >
+                      View all results for "{searchQuery.trim()}"
+                    </button>
+                  )}
                 </div>
               )}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" data-testid="button-language-currency">
+                  <Globe className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Language</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => { setLanguage('en'); setLanguageState('en'); }}>English</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setLanguage('vi'); setLanguageState('vi'); }}>Tiếng Việt</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Currency</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => { setCurrency('USD'); setCurrencyState('USD'); }}>
+                  <DollarSign className="h-4 w-4 mr-2" /> USD
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setCurrency('EUR'); setCurrencyState('EUR'); }}>
+                  <DollarSign className="h-4 w-4 mr-2" /> EUR
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setCurrency('VND'); setCurrencyState('VND'); }}>
+                  <DollarSign className="h-4 w-4 mr-2" /> VND
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLocation('/seller/dashboard')}
+              aria-label="Seller account"
+              data-testid="button-seller"
+            >
+              {t('Seller')}
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -243,11 +289,12 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
                     <p className="text-muted-foreground text-xs">{user.email}</p>
                   </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => console.log('Navigate to orders')}>
+                  
+                  <DropdownMenuItem onClick={() => setLocation('/account/orders')}>
                     <Package className="h-4 w-4 mr-2" />
                     My Orders
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => console.log('Navigate to settings')}>
+                  <DropdownMenuItem onClick={openSettings}>
                     <Settings className="h-4 w-4 mr-2" />
                     Settings
                   </DropdownMenuItem>

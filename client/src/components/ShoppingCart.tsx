@@ -8,6 +8,7 @@ import { cartService } from "@/lib/cart";
 import { getAuthToken } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { productService, type FrontendProduct } from "@/lib/products";
+import { formatPrice, t } from "@/lib/utils";
 
 export interface CartItem {
   id: string;
@@ -172,7 +173,7 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
     <div className="fixed inset-y-0 right-0 w-full md:w-96 bg-background border-l shadow-xl z-50 flex flex-col">
       <div className="flex items-center justify-between p-4 border-b">
         <h2 className="text-lg font-semibold" data-testid="text-cart-title">
-          Shopping Cart ({items.length})
+          {t('Shopping Cart')} ({items.length})
         </h2>
         <Button 
           variant="ghost" 
@@ -187,12 +188,12 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
       {items.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
           <ShoppingBag className="h-16 w-16 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2" data-testid="text-empty-cart">Your cart is empty</h3>
+          <h3 className="text-lg font-medium mb-2" data-testid="text-empty-cart">{t('Your cart is empty')}</h3>
           <p className="text-sm text-muted-foreground mb-6">
-            Add some items to get started
+            {t('Add some items to get started')}
           </p>
           <Button onClick={onClose} data-testid="button-continue-shopping">
-            Continue Shopping
+            {t('Continue Shopping')}
           </Button>
         </div>
       ) : (
@@ -256,7 +257,7 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
                       </div>
 
                       <p className="font-semibold" data-testid={`text-price-${item.id}`}>
-                        ${(item.price * item.quantity).toFixed(2)}
+                        {formatPrice(item.price * item.quantity)}
                       </p>
                     </div>
                   </div>
@@ -270,7 +271,7 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
                   <div key={p.id} className="border rounded p-3">
                     <img src={p.image} alt={p.name} className="w-full h-24 object-cover rounded mb-2" />
                     <p className="text-sm font-medium truncate">{p.name}</p>
-                    <p className="text-sm text-muted-foreground">${p.price.toFixed(2)}</p>
+                    <p className="text-sm text-muted-foreground">{formatPrice(p.price)}</p>
                     {p.sizes && p.sizes.length > 0 && (
                       <select aria-label={`Select size for ${p.name}`} className="mt-2 w-full border rounded px-2 py-1 text-sm" defaultValue={p.sizes[0]} onChange={(e) => (p as any)._selectedSize = e.target.value}>
                         {p.sizes.map(s => <option key={s} value={s}>{s}</option>)}
@@ -295,32 +296,32 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span data-testid="text-subtotal">${(serverTotals?.subtotal ?? subtotal).toFixed(2)}</span>
+                <span data-testid="text-subtotal">{formatPrice(serverTotals?.subtotal ?? subtotal)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Shipping</span>
-                <span data-testid="text-shipping">{((serverTotals?.shipping ?? shipping) === 0) ? 'Free' : `$${(serverTotals?.shipping ?? shipping).toFixed(2)}`}</span>
+                <span data-testid="text-shipping">{((serverTotals?.shipping ?? shipping) === 0) ? t('Free') : formatPrice(serverTotals?.shipping ?? shipping)}</span>
               </div>
               {serverTotals && serverTotals.discount > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Discount</span>
-                  <span data-testid="text-discount">-${serverTotals.discount.toFixed(2)}</span>
+                  <span data-testid="text-discount">-{formatPrice(serverTotals.discount)}</span>
                 </div>
               )}
               {subtotal < 100 && subtotal > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Add ${(100 - subtotal).toFixed(2)} more for free shipping
+                  Add {formatPrice(100 - subtotal)} more for free shipping
                 </p>
               )}
               <Separator />
               <div className="flex justify-between font-semibold text-base">
                 <span>Total</span>
-                <span data-testid="text-total">${(serverTotals?.total ?? total).toFixed(2)}</span>
+                <span data-testid="text-total">{formatPrice(serverTotals?.total ?? total)}</span>
               </div>
               <div className="flex gap-2 pt-2">
                 <input className="flex-1 border rounded px-3 py-1 text-sm" placeholder="Promo code" aria-label="Promo code" value={promoCode} onChange={(e) => setPromoCode(e.target.value)} />
                 <Button variant="outline" onClick={applyPromo} disabled={!promoCode.trim() || isApplyingCoupon} aria-label="Apply coupon">
-                  {isApplyingCoupon ? 'Applying...' : 'Apply'}
+                  {isApplyingCoupon ? 'Applying...' : t('Apply')}
                 </Button>
               </div>
             </div>
@@ -335,10 +336,10 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
               {isCheckingOut ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-                  Processing...
+                  {t('Processing...')}
                 </>
               ) : (
-                `Proceed to Checkout ($${total.toFixed(2)})`
+                `${t('Proceed to Checkout')} (${formatPrice(total)})`
               )}
             </Button>
           </div>

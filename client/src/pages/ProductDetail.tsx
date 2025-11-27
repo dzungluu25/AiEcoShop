@@ -6,6 +6,8 @@ import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { authService, type User } from "@/lib/auth";
+import { formatPrice, t } from "@/lib/utils";
 
 export default function ProductDetail() {
   const [match, params] = useRoute("/product/:id");
@@ -28,6 +30,11 @@ export default function ProductDetail() {
   const [newComment, setNewComment] = useState<string>("");
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    authService.getCurrentUser().then(setCurrentUser).catch(() => setCurrentUser(null));
+  }, []);
 
   const addToCart = () => {
     if (!product) return;
@@ -101,7 +108,7 @@ export default function ProductDetail() {
             <div className="space-y-4">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">{product.category}</p>
               <h1 className="font-serif text-3xl">{product.name}</h1>
-              <p className="text-2xl font-semibold">${product.price.toFixed(2)}</p>
+              <p className="text-2xl font-semibold">{formatPrice(product.price)}</p>
               {typeof product.ratingAverage === 'number' && (
                 <div className="flex items-center gap-2">
                   <div className="flex">
@@ -137,8 +144,8 @@ export default function ProductDetail() {
               )}
 
               <div className="flex gap-3 pt-2">
-                <Button onClick={addToCart} data-testid="button-detail-add" aria-label="Add to cart" disabled={isAdding}>
-                  {isAdding ? 'Adding...' : 'Add to Cart'}
+                <Button onClick={addToCart} data-testid="button-detail-add" aria-label={t('Add to Cart')} disabled={isAdding}>
+                  {isAdding ? 'Adding...' : t('Add to Cart')}
                 </Button>
                 <Link href="/">
                   <Button variant="outline" aria-label="Back to home">Back</Button>
@@ -157,6 +164,9 @@ export default function ProductDetail() {
                           <Star key={i} className={`h-4 w-4 ${i <= r.rating ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground'}`} />
                         ))}
                         <span className="text-xs text-muted-foreground">{r.user || 'Anonymous'}</span>
+                        {r.createdAt && (
+                          <span className="text-xs text-muted-foreground">• {new Date(r.createdAt).toLocaleDateString()}</span>
+                        )}
                       </div>
                       {r.comment && (<p className="text-sm">{r.comment}</p>)}
                     </div>
@@ -186,10 +196,11 @@ export default function ProductDetail() {
                       if (!product) return;
                       try {
                         setIsSubmittingReview(true);
-                        await productService.addReview(product.id, { rating: newRating, comment: newComment });
+                        await productService.addReview(product.id, { rating: newRating, comment: newComment, user: currentUser?.fullname || currentUser?.email });
                         setNewRating(0);
                         setNewComment("");
                         refetchReviews();
+                        toast({ title: 'Review submitted', description: 'Thank you for your feedback!' });
                       } catch {}
                       finally { setIsSubmittingReview(false); }
                     }}

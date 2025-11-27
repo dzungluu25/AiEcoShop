@@ -8,6 +8,9 @@ import ProductDetail from "@/pages/ProductDetail";
 import SearchResults from "@/pages/SearchResults";
 import NotFound from "@/pages/not-found";
 import AdminAIAnalytics from "@/pages/AdminAIAnalytics";
+import SellerDashboard from "@/pages/SellerDashboard";
+import MyOrders from "@/pages/MyOrders";
+import AccountSettings from "@/pages/AccountSettings";
 
 function Router() {
   return (
@@ -16,6 +19,9 @@ function Router() {
       <Route path="/search" component={SearchResults} />
       <Route path="/product/:id" component={ProductDetail} />
       <Route path="/admin/ai-analytics" component={AdminAIAnalytics} />
+      <Route path="/seller/dashboard" component={SellerDashboard} />
+      <Route path="/account/orders" component={MyOrders} />
+      <Route path="/account/settings" component={AccountSettings} />
       <Route component={NotFound} />
     </Switch>
   );
