@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { productService, type BackendProduct } from "@/lib/products";
 import { orderService, type Order } from "@/lib/orders";
@@ -11,9 +12,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import AuthModal from "@/components/AuthModal";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from "recharts";
+import { formatPrice } from "@/lib/utils";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 export default function SellerDashboard() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'products'|'orders'|'analytics'>('products');
@@ -35,13 +42,11 @@ export default function SellerDashboard() {
   const { data: products = [], refetch: refetchProducts } = useQuery({
     queryKey: ['/api/products'],
     queryFn: () => productService.getAllProducts({ limit: 500 }),
-    enabled: !!currentUser,
   });
 
   const { data: orders = [], refetch: refetchOrders } = useQuery({
     queryKey: ['/api/orders'],
     queryFn: () => orderService.list(),
-    enabled: !!currentUser,
     refetchInterval: 10000,
   });
 
@@ -140,21 +145,90 @@ export default function SellerDashboard() {
     } catch {}
   };
 
-  if (!currentUser) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <Card className="p-8 w-full max-w-md text-center space-y-4">
-          <h1 className="font-serif text-2xl">Seller Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Please log in to access seller tools.</p>
-          <Button onClick={() => setAuthOpen(true)} aria-label="Log in to seller account">Log in to Seller Account</Button>
-        </Card>
-        <AuthModal isOpen={authOpen} onClose={()=>setAuthOpen(false)} onAuthSuccess={(u)=>{setCurrentUser(u as any); setAuthOpen(false);}} />
-      </div>
-    );
-  }
+  const printOrdersPdf = () => {
+    const w = window.open('', '_blank', 'noopener,noreferrer');
+    if (!w) return;
+    const rows = orders.map(o => `
+      <tr>
+        <td>${o.id}</td>
+        <td>${o.customerName}</td>
+        <td>${o.customerEmail}</td>
+        <td>${new Date(o.createdAt).toLocaleString()}</td>
+        <td>${o.status}</td>
+        <td style="text-align:right">${formatPrice(o.total)}</td>
+      </tr>
+    `).join('');
+    const totalRevenue = orders.reduce((s,o)=>s+o.total,0);
+    const html = `
+      <html>
+        <head>
+          <title>Orders Report</title>
+          <meta charset="utf-8" />
+          <style>
+            body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; padding: 24px; }
+            h1 { font-size: 20px; margin: 0 0 8px; }
+            .meta { color: #666; font-size: 12px; margin-bottom: 16px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #ddd; padding: 8px; }
+            th { background: #f7f7f7; text-align: left; }
+            tfoot td { font-weight: 600; }
+            @media print { @page { margin: 16mm; } }
+          </style>
+        </head>
+        <body>
+          <h1>Seller Orders Report</h1>
+          <div class="meta">Generated at ${new Date().toLocaleString()}</div>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Customer</th>
+                <th>Email</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th style="text-align:right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="5">Total Revenue</td>
+                <td style="text-align:right">${formatPrice(totalRevenue)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </body>
+      </html>
+    `;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { try { w.print(); } catch {} }, 300);
+  };
+
+  // Allow access to analytics even if not logged in; gate actions elsewhere
+
+  const cartCount = (() => {
+    try {
+      const stored = localStorage.getItem('cart_items');
+      const items = stored ? JSON.parse(stored) : [];
+      return items.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
+    } catch { return 0; }
+  })();
 
   return (
-    <div className="min-h-screen grid grid-cols-1 md:grid-cols-[240px_1fr]">
+    <div className="min-h-screen flex flex-col">
+      <Header 
+        onCartClick={() => { localStorage.setItem('open_cart','1'); setLocation('/'); }}
+        onAIClick={() => { localStorage.setItem('open_ai','1'); setLocation('/'); }}
+        onAuthClick={() => { localStorage.setItem('open_auth','1'); setLocation('/'); }}
+        cartItemCount={cartCount}
+      />
+      <main className="flex-1">
+      <div className="grid grid-cols-1 md:grid-cols-[240px_1fr]">
       <aside className="border-r p-4 space-y-3">
         <h2 className="font-serif text-xl">Seller</h2>
         <Button variant={activeTab==='products'?'default':'outline'} onClick={() => setActiveTab('products')}>Products</Button>
@@ -163,8 +237,20 @@ export default function SellerDashboard() {
         <Separator />
         <Button onClick={() => setAuthOpen(true)} variant="outline">Quick Sign-In</Button>
         <Button onClick={exportOrders} variant="outline">Export Orders</Button>
+        <Button onClick={printOrdersPdf} variant="outline">Print PDF Report</Button>
       </aside>
       <main className="p-6">
+        {!currentUser && (
+          <Card className="p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium">Viewing as guest</h3>
+                <p className="text-sm text-muted-foreground">Sign in to manage products and orders. Analytics are available in read-only mode.</p>
+              </div>
+              <Button variant="outline" onClick={() => setAuthOpen(true)}>Sign In</Button>
+            </div>
+          </Card>
+        )}
         {activeTab === 'products' && (
           <div className="space-y-6">
             <div className="flex items-center gap-3">
@@ -189,8 +275,8 @@ export default function SellerDashboard() {
                       </div>
                       <div>{p.category}</div>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={()=>openEdit({ id:p.id, name:p.name, price:p.price, stock:p.stock, category:p.category })}>Edit</Button>
-                        <Button variant="outline" size="sm" onClick={()=>confirmDelete({ id:p.id, name:p.name })}>Delete</Button>
+                        <Button variant="outline" size="sm" onClick={()=>openEdit({ id:p.id, name:p.name, price:p.price, stock:p.stock, category:p.category })} disabled={!currentUser}>Edit</Button>
+                        <Button variant="outline" size="sm" onClick={()=>confirmDelete({ id:p.id, name:p.name })} disabled={!currentUser}>Delete</Button>
                       </div>
                     </div>
                   ))}
@@ -237,7 +323,7 @@ export default function SellerDashboard() {
                 <Input placeholder="Category" value={newProduct.category||''} onChange={(e)=>setNewProduct({...newProduct,category:e.target.value})} />
                 <input type="file" accept="image/*" onChange={(e)=>setNewProduct({...newProduct,image:e.target.files?.[0]||null})} />
               </div>
-              <Button onClick={saveProduct} disabled={uploading}>{uploading?'Uploading...':'Save Product'}</Button>
+              <Button onClick={()=>{ if(!currentUser){ setAuthOpen(true); return; } saveProduct(); }} disabled={uploading || !currentUser}>{uploading?'Uploading...':'Save Product'}</Button>
             </Card>
           </div>
         )}
@@ -259,9 +345,9 @@ export default function SellerDashboard() {
                       </div>
                       <div>${o.total.toFixed(2)}</div>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={()=>openOrder(o)}>Details</Button>
-                        <Button variant="outline" size="sm" onClick={()=>updateOrderStatus(o.id,'Processing')}>Process</Button>
-                        <Button variant="outline" size="sm" onClick={()=>updateOrderStatus(o.id,'Shipped')}>Ship</Button>
+                        <Button variant="outline" size="sm" onClick={()=>openOrder(o)} disabled={!currentUser}>Details</Button>
+                        <Button variant="outline" size="sm" onClick={()=>updateOrderStatus(o.id,'Processing')} disabled={!currentUser}>Process</Button>
+                        <Button variant="outline" size="sm" onClick={()=>updateOrderStatus(o.id,'Shipped')} disabled={!currentUser}>Ship</Button>
                       </div>
                     </div>
                   ))}
@@ -318,9 +404,134 @@ export default function SellerDashboard() {
                 ))}
               </div>
             </Card>
+            <Card className="p-4">
+              <h3 className="font-medium mb-3">Key Metrics</h3>
+              {(() => {
+                const totalRevenue = orders.reduce((s,o)=>s+o.total,0);
+                const totalOrders = orders.length;
+                const itemsSold = orders.reduce((s,o)=>s+o.items.reduce((ss,it)=>ss+it.quantity,0),0);
+                const avgOrderValue = totalOrders ? totalRevenue/totalOrders : 0;
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="border rounded p-3">
+                      <div className="text-sm text-muted-foreground">Total Revenue</div>
+                      <div className="text-xl font-semibold">{formatPrice(totalRevenue)}</div>
+                    </div>
+                    <div className="border rounded p-3">
+                      <div className="text-sm text-muted-foreground">Total Orders</div>
+                      <div className="text-xl font-semibold">{totalOrders}</div>
+                    </div>
+                    <div className="border rounded p-3">
+                      <div className="text-sm text-muted-foreground">Items Sold</div>
+                      <div className="text-xl font-semibold">{itemsSold}</div>
+                    </div>
+                    <div className="border rounded p-3">
+                      <div className="text-sm text-muted-foreground">Avg Order Value</div>
+                      <div className="text-xl font-semibold">{formatPrice(avgOrderValue)}</div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </Card>
+            <Card className="p-4">
+              <h3 className="font-medium mb-3">Monthly Revenue</h3>
+              {(() => {
+                const months = Array.from({length:12}, (_,i)=>i);
+                const data = months.map(m=>({
+                  month: new Date(2020,m,1).toLocaleString(undefined,{month:'short'}),
+                  revenue: orders.filter(o=> new Date(o.createdAt).getMonth()===m).reduce((s,o)=>s+o.total,0)
+                }));
+                return (
+                  <ChartContainer config={{ revenue:{ label:'Revenue', color:'hsl(var(--primary))' } }} className="h-64">
+                    <BarChart data={data}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis tickFormatter={(v)=>formatPrice(Number(v))} />
+                      <ChartTooltip content={<ChartTooltipContent formatter={(value)=>[formatPrice(Number(value)), 'Revenue']} />} />
+                      <Bar dataKey="revenue" fill="var(--color-revenue)" />
+                    </BarChart>
+                  </ChartContainer>
+                );
+              })()}
+            </Card>
+            <Card className="p-4">
+              <h3 className="font-medium mb-3">Sales by Category</h3>
+              {(() => {
+                const byCategory: Record<string, number> = {};
+                const catById = new Map(products.map(p=>[p.id,p.category]));
+                orders.forEach(o=>{
+                  o.items.forEach(it=>{
+                    const cat = catById.get(it.productId) || 'General';
+                    byCategory[cat] = (byCategory[cat]||0) + it.price*it.quantity;
+                  });
+                });
+                const entries = Object.entries(byCategory).map(([name,value])=>({ name, value }));
+                const colors = ['#60a5fa','#34d399','#fbbf24','#f472b6','#a78bfa','#f87171'];
+                return (
+                  <ChartContainer config={{ revenue:{ label:'Revenue', color:'hsl(var(--primary))' } }} className="h-64">
+                    <PieChart>
+                      <Pie data={entries} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100}>
+                        {entries.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip content={<ChartTooltipContent formatter={(v)=>[formatPrice(Number(v)),'Revenue']} />} />
+                    </PieChart>
+                  </ChartContainer>
+                );
+              })()}
+            </Card>
+            <Card className="p-4">
+              <h3 className="font-medium mb-3">Order Status</h3>
+              {(() => {
+                const statuses = orders.reduce<Record<string,number>>((acc,o)=>{ acc[o.status]=(acc[o.status]||0)+1; return acc; },{});
+                const data = Object.entries(statuses).map(([status,count])=>({ status, count }));
+                return (
+                  <ChartContainer config={{ orders:{ label:'Orders', color:'hsl(var(--accent))' } }} className="h-64">
+                    <BarChart data={data}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="status" />
+                      <YAxis />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="count" fill="var(--color-orders)" />
+                    </BarChart>
+                  </ChartContainer>
+                );
+              })()}
+            </Card>
+            <Card className="p-4">
+              <h3 className="font-medium mb-3">Best Sellers</h3>
+              {(() => {
+                const totals: Record<string,{ name:string; qty:number; revenue:number }> = {};
+                const nameById = new Map(products.map(p=>[p.id,p.name]));
+                orders.forEach(o=>{
+                  o.items.forEach(it=>{
+                    const name = nameById.get(it.productId) || it.name;
+                    const cur = totals[it.productId] || { name, qty:0, revenue:0 };
+                    cur.qty += it.quantity;
+                    cur.revenue += it.price*it.quantity;
+                    totals[it.productId] = cur;
+                  });
+                });
+                const top = Object.values(totals).sort((a,b)=>b.qty-a.qty).slice(0,5);
+                return (
+                  <div className="space-y-2">
+                    {top.map((p,i)=> (
+                      <div key={i} className="flex justify-between">
+                        <span className="truncate">{p.name}</span>
+                        <span className="text-sm text-muted-foreground">{p.qty} • {formatPrice(p.revenue)}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </Card>
           </div>
         )}
       </main>
+      </div>
+      </main>
+      <Footer />
       <AuthModal isOpen={authOpen} onClose={()=>setAuthOpen(false)} onAuthSuccess={(u)=>{setCurrentUser(u as any); setAuthOpen(false);}} />
     </div>
   );

@@ -81,3 +81,13 @@ export function t(key: string): string {
   const lang = getLanguage()
   return dict[lang][key] || key
 }
+
+export function convertUsdToCurrency(amount: number, currency?: Currency): number {
+  const cur = currency || getCurrency()
+  return amount * rates[cur]
+}
+
+export function convertCurrencyToUsd(amount: number, currency?: Currency): number {
+  const cur = currency || getCurrency()
+  return amount / rates[cur]
+}

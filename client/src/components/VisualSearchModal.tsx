@@ -4,6 +4,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import ProductCard, { type Product } from "./ProductCard";
 import { aiService, type VisualSearchResult } from "@/lib/ai";
+import { Slider } from "@/components/ui/slider";
+import { convertUsdToCurrency, convertCurrencyToUsd, formatPrice } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 interface VisualSearchModalProps {
@@ -23,19 +25,22 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
+  const [priceRangeUsd, setPriceRangeUsd] = useState<[number, number]>([0, 500]);
+  const [sortBy, setSortBy] = useState<'similarity'|'price'>('similarity');
 
   const runVisualSearch = async (imageUrl: string) => {
     setIsSearching(true);
     try {
       const res: VisualSearchResult[] = await aiService.visualSearch({ imageUrl, limit: 9 });
-      const mapped: Product[] = res.map(r => ({
+      const mapped: (Product & { similarity:number })[] = res.map(r => ({
         id: r.product.id,
         name: r.product.name,
         price: r.product.price,
         image: r.product.image,
         category: 'Similar',
+        similarity: r.similarity,
       }));
-      setResults(mapped);
+      setResults(mapped as any);
     } catch {
       setResults([]);
     } finally {
@@ -277,20 +282,37 @@ export default function VisualSearchModal({ isOpen, onClose, onProductClick }: V
                       <p className="text-sm text-muted-foreground">
                     These products match your uploaded image based on style, color, and design.
                   </p>
-                </div>
-              )}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Price Range</p>
+                          <Slider value={[convertUsdToCurrency(priceRangeUsd[0]), convertUsdToCurrency(priceRangeUsd[1])]} min={convertUsdToCurrency(0)} max={convertUsdToCurrency(500)} step={Math.max(1, Math.round(convertUsdToCurrency(500)/50))} onValueChange={(v)=>setPriceRangeUsd([convertCurrencyToUsd(v[0]), convertCurrencyToUsd(v[1])])} />
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Sort By</p>
+                          <select className="w-full border rounded px-2 py-1 text-sm" value={sortBy} onChange={(e)=>setSortBy(e.target.value as any)}>
+                            <option value="similarity">Similarity</option>
+                            <option value="price">Price</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 </div>
               )}
               
               {!isSearching && (
                 <div className="grid grid-cols-3 gap-4">
-                  {results.map((product, index) => (
+                  {[...results]
+                    .filter((p:any)=>p.price>=priceRangeUsd[0] && p.price<=priceRangeUsd[1])
+                    .sort((a:any,b:any)=> sortBy==='similarity' ? b.similarity - a.similarity : a.price - b.price)
+                    .map((product: any, index: number) => (
                     <div key={product.id} data-testid={`result-${index}`}>
                       <div className="aspect-square rounded-lg mb-2 overflow-hidden">
                         <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                       </div>
                       <p className="text-sm font-medium">{product.name}</p>
+                      <p className="text-sm text-muted-foreground">Similarity: {(product.similarity*100).toFixed(0)}%</p>
                       <p className="text-sm font-semibold text-primary">${product.price}</p>
                     </div>
                   ))}

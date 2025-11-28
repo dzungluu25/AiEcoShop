@@ -93,9 +93,13 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
             
-            <h1 className="font-serif text-2xl font-light tracking-wide" data-testid="text-logo">
-                LUXE
-            </h1>
+            <button 
+              className="font-serif text-2xl font-light tracking-wide" 
+              onClick={() => setLocation('/')} 
+              data-testid="text-logo"
+            >
+              Team10
+            </button>
           </div>
 
           <div className="hidden lg:flex items-center gap-6">

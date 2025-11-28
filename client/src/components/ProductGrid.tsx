@@ -8,7 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ProductCard, { type Product } from "./ProductCard";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, convertUsdToCurrency, convertCurrencyToUsd, getCurrency } from "@/lib/utils";
 
 interface ProductGridProps {
   products: Product[];
@@ -24,7 +24,7 @@ export default function ProductGrid({
   onVisualSearch 
 }: ProductGridProps) {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [priceRange, setPriceRange] = useState([0, 500]);
+  const [priceRangeUsd, setPriceRangeUsd] = useState<[number, number]>([0, 500]);
   const [sortBy, setSortBy] = useState("featured");
 
   const categories = Array.from(new Set(products.map(p => p.category)));
@@ -39,14 +39,14 @@ export default function ProductGrid({
 
   const clearFilters = () => {
     setSelectedCategories([]);
-    setPriceRange([0, 500]);
+    setPriceRangeUsd([0, 500]);
   };
 
   const filteredProducts = products.filter(product => {
     if (selectedCategories.length > 0 && !selectedCategories.includes(product.category)) {
       return false;
     }
-    if (product.price < priceRange[0] || product.price > priceRange[1]) {
+    if (product.price < priceRangeUsd[0] || product.price > priceRangeUsd[1]) {
       return false;
     }
     return true;
@@ -83,17 +83,17 @@ export default function ProductGrid({
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-4 space-y-4">
           <Slider
-            value={priceRange}
-            onValueChange={setPriceRange}
-            min={0}
-            max={500}
-            step={10}
+            value={[convertUsdToCurrency(priceRangeUsd[0]), convertUsdToCurrency(priceRangeUsd[1])]}
+            onValueChange={(v)=>setPriceRangeUsd([convertCurrencyToUsd(v[0]), convertCurrencyToUsd(v[1])])}
+            min={convertUsdToCurrency(0)}
+            max={convertUsdToCurrency(500)}
+            step={Math.max(1, Math.round(convertUsdToCurrency(500)/50))}
             className="w-full"
             data-testid="slider-price"
           />
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span data-testid="text-price-min">{formatPrice(priceRange[0])}</span>
-            <span data-testid="text-price-max">{formatPrice(priceRange[1])}</span>
+            <span data-testid="text-price-min">{formatPrice(priceRangeUsd[0])}</span>
+            <span data-testid="text-price-max">{formatPrice(priceRangeUsd[1])}</span>
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -168,7 +168,7 @@ export default function ProductGrid({
         <aside className="hidden lg:block w-64 flex-shrink-0">
           <div className="sticky top-24">
             <FilterContent />
-            {(selectedCategories.length > 0 || priceRange[0] !== 0 || priceRange[1] !== 500) && (
+            {(selectedCategories.length > 0 || priceRangeUsd[0] !== 0 || priceRangeUsd[1] !== 500) && (
               <Button
                 variant="outline"
                 size="sm"

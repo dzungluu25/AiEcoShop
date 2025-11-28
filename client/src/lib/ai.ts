@@ -8,6 +8,12 @@ export interface ChatMessage {
 export interface ChatRequest {
   messages: ChatMessage[];
   productContext?: string[];
+  filters?: {
+    priceMin?: number;
+    priceMax?: number;
+    brands?: string[];
+    categories?: string[];
+  };
 }
 
 export interface ChatResponse {

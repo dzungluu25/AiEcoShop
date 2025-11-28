@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { authService, type User } from "@/lib/auth";
 import { formatPrice, t } from "@/lib/utils";
+import VirtualTryOn from "@/components/VirtualTryOn";
 
 export default function ProductDetail() {
   const [match, params] = useRoute("/product/:id");
@@ -31,6 +32,7 @@ export default function ProductDetail() {
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [tryOnOpen, setTryOnOpen] = useState(false);
 
   useEffect(() => {
     authService.getCurrentUser().then(setCurrentUser).catch(() => setCurrentUser(null));
@@ -147,6 +149,7 @@ export default function ProductDetail() {
                 <Button onClick={addToCart} data-testid="button-detail-add" aria-label={t('Add to Cart')} disabled={isAdding}>
                   {isAdding ? 'Adding...' : t('Add to Cart')}
                 </Button>
+                <Button variant="outline" onClick={()=>setTryOnOpen(true)} aria-label="Try on">Try On</Button>
                 <Link href="/">
                   <Button variant="outline" aria-label="Back to home">Back</Button>
                 </Link>
@@ -214,6 +217,7 @@ export default function ProductDetail() {
         </div>
       </main>
       <Footer />
+      <VirtualTryOn isOpen={tryOnOpen} onClose={()=>setTryOnOpen(false)} imageUrl={product.image} productName={product.name} />
     </div>
   );
 }

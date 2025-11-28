@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Send, X, Sparkles, Image as ImageIcon, Mic, Volume2, Search } from "lucide-react";
+import { Send, X, Sparkles, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { aiService, type ChatMessage } from "@/lib/ai";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api";
+import { useLocation } from "wouter";
 
 interface Message {
   id: string;
@@ -28,6 +29,7 @@ interface AIChatProps {
 }
 
 export default function AIChat({ isOpen, onClose }: AIChatProps) {
+  const [, setLocation] = useLocation();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -47,79 +49,16 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
   ];
 
   const [isSending, setIsSending] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [voiceSupported] = useState<boolean>(typeof window !== 'undefined' && (!!(window as any).webkitSpeechRecognition || !!(window as any).SpeechRecognition));
-  const [ttsEnabled, setTtsEnabled] = useState(true);
-  const [voiceLang, setVoiceLang] = useState('en-US');
-  const [voiceRate, setVoiceRate] = useState(1);
-  const [voicePitch, setVoicePitch] = useState(1);
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [voiceName, setVoiceName] = useState<string>('');
+  const [isListening] = useState(false);
+  const [minPrice, setMinPrice] = useState<number | ''>('');
+  const [maxPrice, setMaxPrice] = useState<number | ''>('');
+  const [brandsInput, setBrandsInput] = useState<string>('');
+  const [categoriesInput, setCategoriesInput] = useState<string>('');
 
   // Load available voices and keep list updated without causing re-render loops
-  React.useEffect(() => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    const update = () => {
-      const vs = window.speechSynthesis.getVoices();
-      setVoices(vs);
-    };
-    // Attach listener and fetch initial
-    (window.speechSynthesis as any).onvoiceschanged = update;
-    update();
-    return () => {
-      (window.speechSynthesis as any).onvoiceschanged = null;
-    };
-  }, []);
+  React.useEffect(() => {}, []);
 
-  React.useEffect(() => {
-    if (!voiceName && voices.length > 0) {
-      setVoiceName(voices[0].name);
-    }
-  }, [voices, voiceName]);
-
-  const startVoice = () => {
-    if (!voiceSupported || isListening) return;
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
-    const rec = new SR();
-    rec.lang = voiceLang;
-    rec.interimResults = true;
-    rec.maxAlternatives = 1;
-    let finalText = '';
-    const t0 = performance.now();
-    rec.onresult = (e: any) => {
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const transcript = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finalText += transcript;
-        setInputValue(transcript);
-      }
-    };
-    rec.onend = () => {
-      setIsListening(false);
-      const dt = performance.now() - t0;
-      apiClient.post('/ai/metrics/events', { type: 'voice_latency', value: dt }).catch(() => {});
-      if (finalText.trim().length > 0) {
-        setInputValue(finalText.trim());
-        handleSend();
-      }
-    };
-    rec.onerror = () => { setIsListening(false); apiClient.post('/ai/metrics/events', { type: 'voice_error' }).catch(() => {}); };
-    setIsListening(true);
-    rec.start();
-  };
-
-  const speak = (text: string) => {
-    if (!ttsEnabled) return;
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = voiceLang;
-    u.rate = Math.min(2, Math.max(0.5, voiceRate));
-    u.pitch = Math.min(2, Math.max(0, voicePitch));
-    const v = voices.find(v => v.name === voiceName);
-    if (v) u.voice = v;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
-  };
+  const speak = (_text: string) => {};
 
   const handleSend = () => {
     if (!inputValue.trim() || isSending) return;
@@ -139,7 +78,15 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
     }));
 
     setIsSending(true);
-    aiService.chat({ messages: chatMessages })
+    aiService.chat({ 
+        messages: chatMessages,
+        filters: {
+          priceMin: typeof minPrice === 'number' ? minPrice : undefined,
+          priceMax: typeof maxPrice === 'number' ? maxPrice : undefined,
+          brands: brandsInput ? brandsInput.split(',').map(s=>s.trim()).filter(Boolean) : undefined,
+          categories: categoriesInput ? categoriesInput.split(',').map(s=>s.trim()).filter(Boolean) : undefined,
+        }
+      })
       .then(res => {
         apiClient.post('/ai/metrics/events', { type: 'chat_message' }).catch(() => {});
         const aiResponse: Message = {
@@ -285,7 +232,7 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
                 </div>
 
                 {message.product && (
-                  <Card className="p-3 hover-elevate cursor-pointer" data-testid={`product-card-${message.product.id}`}>
+                    <Card className="p-3 hover-elevate cursor-pointer" data-testid={`product-card-${message.product.id}`} onClick={()=>setLocation(`/product/${message.product!.id}`)}>
                     <div className="flex gap-3">
                       <img
                         src={message.product.image}
@@ -297,6 +244,10 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
                         <p className="text-sm font-semibold text-primary">
                           ${message.product.price}
                         </p>
+                        <div className="flex gap-2 mt-2">
+                          <Button variant="outline" size="sm" onClick={()=>apiClient.post('/ai/feedback', { productId: message.product?.id, feedback: 'like' }).catch(()=>{})}>Like</Button>
+                          <Button variant="outline" size="sm" onClick={()=>apiClient.post('/ai/feedback', { productId: message.product?.id, feedback: 'dislike' }).catch(()=>{})}>Not for me</Button>
+                        </div>
                       </div>
                     </div>
                   </Card>
@@ -329,73 +280,25 @@ export default function AIChat({ isOpen, onClose }: AIChatProps) {
         </div>
 
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="icon"
-            data-testid="button-upload-image"
-            disabled={isUploading}
-            asChild
-          >
-            <label className="cursor-pointer">
-              {isUploading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-              ) : (
-                <ImageIcon className="h-4 w-4" />
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageUpload}
-                disabled={isUploading}
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" placeholder="Min price" className="border rounded px-2 py-1 text-sm" value={minPrice} onChange={(e)=>setMinPrice(e.target.value ? parseFloat(e.target.value) : '')} />
+              <input type="number" placeholder="Max price" className="border rounded px-2 py-1 text-sm" value={maxPrice} onChange={(e)=>setMaxPrice(e.target.value ? parseFloat(e.target.value) : '')} />
+              <input placeholder="Brands (comma)" className="border rounded px-2 py-1 text-sm" value={brandsInput} onChange={(e)=>setBrandsInput(e.target.value)} />
+              <input placeholder="Categories (comma)" className="border rounded px-2 py-1 text-sm" value={categoriesInput} onChange={(e)=>setCategoriesInput(e.target.value)} />
+            </div>
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                placeholder="Ask me anything..."
+                aria-label="Chat input"
+                className="w-full pl-10 pr-12 rounded-full bg-background border transition-all duration-200 ease-out focus:ring-2 focus:ring-primary/30 focus:border-primary/30"
+                data-testid="input-chat-message"
               />
-            </label>
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            disabled={!voiceSupported || isListening}
-            onClick={startVoice}
-            aria-label="Start voice input"
-            data-testid="button-voice"
-          >
-            {isListening ? (
-              <div className="animate-pulse"><Mic className="h-4 w-4" /></div>
-            ) : (
-              <Mic className="h-4 w-4" />
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setTtsEnabled(v => !v)}
-            aria-label="Toggle voice playback"
-            data-testid="button-tts"
-          >
-            <Volume2 className={`h-4 w-4 ${ttsEnabled ? '' : 'opacity-40'}`} />
-          </Button>
-          {/* Voice configuration */}
-          <select className="border rounded px-2 text-sm" value={voiceLang} onChange={(e) => setVoiceLang(e.target.value)} aria-label="Voice language">
-            <option value="en-US">English (US)</option>
-            <option value="en-GB">English (UK)</option>
-            <option value="vi-VN">Vietnamese</option>
-          </select>
-          <select className="border rounded px-2 text-sm" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} aria-label="Voice">
-            {voices.map(v => (<option key={v.name} value={v.name}>{v.name}</option>))}
-          </select>
-          <input type="range" min={0.5} max={2} step={0.1} value={voiceRate} onChange={(e) => setVoiceRate(parseFloat(e.target.value))} aria-label="Voice rate" />
-          <input type="range" min={0} max={2} step={0.1} value={voicePitch} onChange={(e) => setVoicePitch(parseFloat(e.target.value))} aria-label="Voice pitch" />
-          <div className="relative flex-1 min-w-0 group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Ask me anything..."
-              aria-label="Chat input"
-              className="w-full pl-10 pr-12 rounded-full bg-background border transition-all duration-200 ease-out focus:ring-2 focus:ring-primary/30 focus:border-primary/30"
-              data-testid="input-chat-message"
-            />
+            </div>
           </div>
           <Button 
             onClick={handleSend}
