@@ -67,7 +67,19 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
           variant="outline"
           size="sm"
           onClick={() => {
-            commit([...items, itemToRemove]);
+            setItems(prev => {
+              const idx = prev.findIndex(i => i.id === itemToRemove.id && i.size === itemToRemove.size);
+              let next: CartItem[];
+              if (idx >= 0) {
+                const existing = prev[idx];
+                next = [...prev];
+                next[idx] = { ...existing, quantity: existing.quantity + itemToRemove.quantity };
+              } else {
+                next = [...prev, itemToRemove];
+              }
+              onItemsChange?.(next);
+              return next;
+            });
           }}
         >
           Undo
