@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 
-const BACKEND_URL = "http://localhost:3001";
+const BACKEND_URL = "http://localhost:3002";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // put application routes here

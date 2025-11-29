@@ -30,7 +30,7 @@ export default function Home() {
   // Fetch products from backend
   const { data: products = [], isLoading: isLoadingProducts } = useQuery({
     queryKey: ['/api/products'],
-    queryFn: () => productService.getAllProducts({ limit: 60 }),
+    queryFn: () => productService.getAllProducts({ limit: 100 }),
   });
 
   const categories = [
