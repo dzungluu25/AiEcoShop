@@ -33,6 +33,7 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
   const openSettings = () => setLocation('/account/settings');
   const [currency, setCurrencyState] = useState(getCurrency());
   const [language, setLanguageState] = useState(getLanguage());
+  const [effectiveUser, setEffectiveUser] = useState<UserType | null>(user || null);
 
   const categories = categoriesProp && categoriesProp.length > 0 ? categoriesProp : ["All"];
 
@@ -44,6 +45,18 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Ensure we have a fully populated user (with role) for gating
+  useEffect(() => {
+    if (user) {
+      setEffectiveUser(user);
+      if (!user.role) {
+        authService.getCurrentUser().then(setEffectiveUser).catch(() => {});
+      }
+    } else if (!effectiveUser) {
+      authService.getCurrentUser().then(setEffectiveUser).catch(() => {});
+    }
+  }, [user]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -238,15 +251,17 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setLocation('/seller/dashboard')}
-              aria-label="Seller account"
-              data-testid="button-seller"
-            >
-              {t('Seller')}
-            </Button>
+            {effectiveUser && effectiveUser.role && effectiveUser.role.toLowerCase() === 'admin' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLocation('/seller/dashboard')}
+                aria-label="Seller account"
+                data-testid="button-seller"
+              >
+                Seller
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -302,6 +317,12 @@ export default function Header({ onCartClick, onAIClick, onAuthClick, cartItemCo
                     <Settings className="h-4 w-4 mr-2" />
                     Settings
                   </DropdownMenuItem>
+                  {effectiveUser && effectiveUser.role && effectiveUser.role.toLowerCase() === 'admin' && (
+                    <DropdownMenuItem onClick={() => setLocation('/seller/dashboard')}>
+                      <Package className="h-4 w-4 mr-2" />
+                      Seller Dashboard
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={handleLogout}

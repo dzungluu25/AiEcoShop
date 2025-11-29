@@ -71,10 +71,6 @@ export default function ProductCard({
     e.stopPropagation();
     if (onAddToCart) {
       onAddToCart(product);
-      toast({
-        title: "Added to cart",
-        description: `${product.name} has been added to your cart.`,
-      });
     }
   };
 

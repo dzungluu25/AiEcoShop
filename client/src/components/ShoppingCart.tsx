@@ -163,6 +163,12 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
   });
 
   const addProductToCart = (p: FrontendProduct, selectedSize?: string) => {
+    const token = getAuthToken();
+    if (!token) {
+      localStorage.setItem('open_auth','1');
+      toast({ title: 'Please sign in', description: 'Sign in to add items to your cart' });
+      return;
+    }
     setAddingProductId(p.id);
     try {
       const existing = items.find(i => i.id === p.id && (!selectedSize || i.size === selectedSize));

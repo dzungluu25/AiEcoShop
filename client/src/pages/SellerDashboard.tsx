@@ -35,8 +35,9 @@ export default function SellerDashboard() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id:string; name:string } | null>(null);
 
+  const [authChecked, setAuthChecked] = useState(false);
   useEffect(() => {
-    authService.getCurrentUser().then(setCurrentUser).catch(() => setAuthOpen(true));
+    authService.getCurrentUser().then((u)=>{ setCurrentUser(u); setAuthChecked(true);} ).catch(() => { setAuthChecked(true); setAuthOpen(true); });
   }, []);
 
   const { data: products = [], refetch: refetchProducts } = useQuery({
@@ -218,6 +219,29 @@ export default function SellerDashboard() {
       return items.reduce((sum: number, i: any) => sum + (i.quantity || 1), 0);
     } catch { return 0; }
   })();
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Card className="p-8 w-full max-w-md text-center space-y-4">
+          <h1 className="font-serif text-2xl">Loading</h1>
+          <p className="text-sm text-muted-foreground">Checking access…</p>
+        </Card>
+      </div>
+    );
+  }
+  if (!currentUser || !currentUser.role || currentUser.role.toLowerCase() !== 'admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Card className="p-8 w-full max-w-md text-center space-y-4">
+          <h1 className="font-serif text-2xl">Access Restricted</h1>
+          <p className="text-sm text-muted-foreground">Only admin users can view the seller dashboard.</p>
+          <Button onClick={() => setAuthOpen(true)} aria-label="Log in">Log In</Button>
+          <AuthModal isOpen={authOpen} onClose={()=>setAuthOpen(false)} onAuthSuccess={(u)=>{setCurrentUser(u as any); setAuthOpen(false);}} />
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">

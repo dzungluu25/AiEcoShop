@@ -40,6 +40,12 @@ export default function ProductDetail() {
 
   const addToCart = () => {
     if (!product) return;
+    if (!currentUser) {
+      toast({ title: 'Please sign in', description: 'Sign in to add items to your cart' });
+      localStorage.setItem('open_auth','1');
+      setLocation('/');
+      return;
+    }
     try {
       setIsAdding(true);
       const stored = localStorage.getItem("cart_items");
@@ -51,7 +57,7 @@ export default function ProductDetail() {
         items.push({ id: product.id, name: product.name, price: product.price, image: product.image, quantity: 1 });
       }
       localStorage.setItem("cart_items", JSON.stringify(items));
-      toast({ title: "Added to cart", description: `${product.name} added to cart.` });
+      
       localStorage.setItem('open_cart', '1');
       setLocation('/');
     } catch {}

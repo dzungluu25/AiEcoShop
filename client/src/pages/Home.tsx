@@ -93,6 +93,10 @@ export default function Home() {
   }, []);
 
   const handleAddToCart = (product: Product) => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      return;
+    }
     const existingItem = cartItems.find(item => item.id === product.id);
     
     if (existingItem) {

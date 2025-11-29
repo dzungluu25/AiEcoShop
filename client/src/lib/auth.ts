@@ -4,6 +4,7 @@ export interface User {
   id: string;
   email: string;
   fullname: string;
+  role?: string;
   metadata?: {
     creationTime: string;
   };

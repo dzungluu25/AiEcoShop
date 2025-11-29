@@ -90,7 +90,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
           setAuthToken(evt.data.token);
           toast({ title: 'Signed in with ' + provider });
           window.removeEventListener('message', onMessage);
-          onAuthSuccess(evt.data.user);
+          // Fetch full user to ensure role is present
+          authService.getCurrentUser().then((full) => {
+            onAuthSuccess(full);
+          }).catch(() => {
+            onAuthSuccess(evt.data.user);
+          });
           onClose();
         } else if (evt.data.type === 'oauth-error') {
           toast({ title: 'Authentication failed', description: evt.data.message, variant: 'destructive' });
