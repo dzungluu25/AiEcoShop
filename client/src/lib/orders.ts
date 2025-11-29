@@ -3,6 +3,8 @@ import { apiClient } from './api';
 export interface OrderItem {
   productId: string;
   name: string;
+  image?: string;
+  category?: string;
   price: number;
   quantity: number;
 }
@@ -23,4 +25,3 @@ export const orderService = {
   async updateStatus(id: string, status: string): Promise<Order> { return apiClient.put<Order>(`/orders/${id}/status`, { status }); },
   async exportCsv(): Promise<string> { return apiClient.get<string>('/orders/export'); },
 };
-

@@ -126,23 +126,30 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
     setIsCheckingOut(true);
     
     try {
-      // Simulate checkout process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Clear cart after successful checkout
-      setItems([]);
-      
-      toast({
-        title: "Checkout successful!",
-        description: "Your order has been placed and will be processed shortly.",
-        duration: 5000,
-      });
-      
-      // Close cart after successful checkout
-      setTimeout(() => {
+      const token = getAuthToken();
+      if (!token) {
+        localStorage.setItem('open_auth','1');
+        toast({ title: 'Please sign in', description: 'Sign in to complete checkout' });
         onClose();
-      }, 1000);
-      
+        return;
+      }
+      const payload = {
+        items: items.map(i => ({ productId: i.id, name: i.name, image: i.image, price: i.price, quantity: i.quantity }))
+      };
+      const resp = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api'}/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(text || 'Checkout failed');
+      }
+      const order = await resp.json();
+      setItems([]);
+      toast({ title: 'Checkout successful!', description: `Order ${order.id} placed.` });
+      localStorage.setItem('open_orders','1');
+      onClose();
     } catch (error) {
       toast({
         title: "Checkout failed",
@@ -361,6 +368,7 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
               data-testid="button-checkout"
               onClick={handleCheckout}
               disabled={isCheckingOut || items.length === 0}
+              aria-disabled={isCheckingOut || items.length === 0}
             >
               {isCheckingOut ? (
                 <>
@@ -371,6 +379,9 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
                 `${t('Proceed to Checkout')} (${formatPrice(total)})`
               )}
             </Button>
+            {!getAuthToken() && (
+              <p className="text-xs text-muted-foreground text-center" aria-live="polite">Sign in to proceed to checkout</p>
+            )}
           </div>
         </>
       )}
