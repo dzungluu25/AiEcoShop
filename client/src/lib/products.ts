@@ -128,8 +128,7 @@ export const productService = {
   },
 
   async createProduct(data: Partial<BackendProduct>): Promise<BackendProduct> {
-    const id = await apiClient.post<{ key: string }>('/products/generate-key', {});
-    return apiClient.post<BackendProduct>(`/products/${id.key}`, data);
+    return apiClient.post<BackendProduct>('/products', data);
   },
 
   async updateProduct(id: string, data: Partial<BackendProduct>): Promise<BackendProduct> {
@@ -138,6 +137,11 @@ export const productService = {
 
   async deleteProduct(id: string): Promise<void> {
     await apiClient.delete(`/products/${id}`);
+  },
+
+  async getSellerProducts(): Promise<FrontendProduct[]> {
+    const products = await apiClient.get<BackendProduct[]>('/products/seller');
+    return products.map(transformProduct);
   },
 
   async getReviews(id: string): Promise<ReviewEntry[]> {

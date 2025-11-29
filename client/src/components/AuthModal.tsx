@@ -153,6 +153,28 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
           <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-signin">
             {isLoading ? "Signing in..." : "Sign In"}
           </Button>
+          <div className="flex items-center justify-between mt-2">
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:underline"
+              onClick={async () => {
+                const email = prompt('Enter your email for password reset');
+                if (!email) return;
+                try {
+                  const resp = await apiClient.post<{ resetToken: string }>('/auth/password-reset', { email });
+                  const token = (resp as any).resetToken;
+                  const newPw = prompt('Enter new password');
+                  if (!newPw) return;
+                  await authService.resetPassword(token, newPw);
+                  toast({ title: 'Password reset' });
+                } catch (e:any) {
+                  toast({ title: 'Reset failed', description: e?.message || 'Error', variant: 'destructive' });
+                }
+              }}
+            >
+              Forgot password?
+            </button>
+          </div>
           <div className="flex items-center gap-3 mt-3">
             <Button variant="outline" aria-label="Continue with Google" onClick={() => startOAuth('google')} disabled={isOauthLoading} data-testid="button-google">
               {isOauthLoading ? 'Loading...' : 'Continue with Google'}
