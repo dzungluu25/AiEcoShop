@@ -256,9 +256,20 @@ export default function ShoppingCart({ isOpen, onClose, items: initialItems = []
                         </Button>
                       </div>
 
-                      <p className="font-semibold" data-testid={`text-price-${item.id}`}>
-                        {formatPrice(item.price * item.quantity)}
-                      </p>
+                      <div className="flex items-center gap-3">
+                        <p className="font-semibold" data-testid={`text-price-${item.id}`}>
+                          {formatPrice(item.price * item.quantity)}
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={`Remove ${item.name} from cart`}
+                          onClick={() => removeItem(item.id)}
+                          data-testid={`button-remove-item-${item.id}`}
+                        >
+                          Remove
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
